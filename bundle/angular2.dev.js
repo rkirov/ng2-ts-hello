@@ -1,7 +1,5 @@
-'use strict';
-
-
 function Zone(parentZone, data) {
+  'use strict';
   var zone = (arguments.length) ? Object.create(parentZone) : this;
 
   zone.parent = parentZone;
