@@ -1,8 +1,7 @@
 # Simple Angular 2 app written in TypeScript
 
 ## Use latest TypeScript compiler
-TypeScript 1.5 beta will include everything you need. Until that is released,
-we use a GitHub reference to the latest alpha.
+TypeScript 1.5 beta includes everything you need. Make sure to upgrade, even if you installed TypeScript previously.
 
     $ npm install -g typescript@^1.5.0-beta
 
