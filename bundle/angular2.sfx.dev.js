@@ -2989,7 +2989,3830 @@ var Reflect;
                 Function("return this;")());
 })(Reflect || (Reflect = {}));
 //# sourceMappingURLDisabled=Reflect.js.map
-"format register";
+(function(global) {
+  'use strict';
+  if (global.$traceurRuntime) {
+    return ;
+  }
+  var $Object = Object;
+  var $TypeError = TypeError;
+  var $create = $Object.create;
+  var $defineProperties = $Object.defineProperties;
+  var $defineProperty = $Object.defineProperty;
+  var $freeze = $Object.freeze;
+  var $getOwnPropertyDescriptor = $Object.getOwnPropertyDescriptor;
+  var $getOwnPropertyNames = $Object.getOwnPropertyNames;
+  var $keys = $Object.keys;
+  var $hasOwnProperty = $Object.prototype.hasOwnProperty;
+  var $toString = $Object.prototype.toString;
+  var $preventExtensions = Object.preventExtensions;
+  var $seal = Object.seal;
+  var $isExtensible = Object.isExtensible;
+  var $apply = Function.prototype.call.bind(Function.prototype.apply);
+  function $bind(operand, thisArg, args) {
+    var argArray = [thisArg];
+    for (var i = 0; i < args.length; i++) {
+      argArray[i + 1] = args[i];
+    }
+    var func = $apply(Function.prototype.bind, operand, argArray);
+    return func;
+  }
+  function $construct(func, argArray) {
+    var object = new ($bind(func, null, argArray));
+    return object;
+  }
+  var counter = 0;
+  function newUniqueString() {
+    return '__$' + Math.floor(Math.random() * 1e9) + '$' + ++counter + '$__';
+  }
+  var privateNames = $create(null);
+  function isPrivateName(s) {
+    return privateNames[s];
+  }
+  function createPrivateName() {
+    var s = newUniqueString();
+    privateNames[s] = true;
+    return s;
+  }
+  var CONTINUATION_TYPE = Object.create(null);
+  function createContinuation(operand, thisArg, argsArray) {
+    return [CONTINUATION_TYPE, operand, thisArg, argsArray];
+  }
+  function isContinuation(object) {
+    return object && object[0] === CONTINUATION_TYPE;
+  }
+  var isTailRecursiveName = null;
+  function setupProperTailCalls() {
+    isTailRecursiveName = createPrivateName();
+    Function.prototype.call = initTailRecursiveFunction(function call(thisArg) {
+      var result = tailCall(function(thisArg) {
+        var argArray = [];
+        for (var i = 1; i < arguments.length; ++i) {
+          argArray[i - 1] = arguments[i];
+        }
+        var continuation = createContinuation(this, thisArg, argArray);
+        return continuation;
+      }, this, arguments);
+      return result;
+    });
+    Function.prototype.apply = initTailRecursiveFunction(function apply(thisArg, argArray) {
+      var result = tailCall(function(thisArg, argArray) {
+        var continuation = createContinuation(this, thisArg, argArray);
+        return continuation;
+      }, this, arguments);
+      return result;
+    });
+  }
+  function initTailRecursiveFunction(func) {
+    if (isTailRecursiveName === null) {
+      setupProperTailCalls();
+    }
+    func[isTailRecursiveName] = true;
+    return func;
+  }
+  function isTailRecursive(func) {
+    return !!func[isTailRecursiveName];
+  }
+  function tailCall(func, thisArg, argArray) {
+    var continuation = argArray[0];
+    if (isContinuation(continuation)) {
+      continuation = $apply(func, thisArg, continuation[3]);
+      return continuation;
+    }
+    continuation = createContinuation(func, thisArg, argArray);
+    while (true) {
+      if (isTailRecursive(func)) {
+        continuation = $apply(func, continuation[2], [continuation]);
+      } else {
+        continuation = $apply(func, continuation[2], continuation[3]);
+      }
+      if (!isContinuation(continuation)) {
+        return continuation;
+      }
+      func = continuation[1];
+    }
+  }
+  function construct() {
+    var object;
+    if (isTailRecursive(this)) {
+      object = $construct(this, [createContinuation(null, null, arguments)]);
+    } else {
+      object = $construct(this, arguments);
+    }
+    return object;
+  }
+  var $traceurRuntime = {
+    initTailRecursiveFunction: initTailRecursiveFunction,
+    call: tailCall,
+    continuation: createContinuation,
+    construct: construct
+  };
+  (function() {
+    function nonEnum(value) {
+      return {
+        configurable: true,
+        enumerable: false,
+        value: value,
+        writable: true
+      };
+    }
+    var method = nonEnum;
+    var symbolInternalProperty = newUniqueString();
+    var symbolDescriptionProperty = newUniqueString();
+    var symbolDataProperty = newUniqueString();
+    var symbolValues = $create(null);
+    function isShimSymbol(symbol) {
+      return typeof symbol === 'object' && symbol instanceof SymbolValue;
+    }
+    function typeOf(v) {
+      if (isShimSymbol(v))
+        return 'symbol';
+      return typeof v;
+    }
+    function Symbol(description) {
+      var value = new SymbolValue(description);
+      if (!(this instanceof Symbol))
+        return value;
+      throw new TypeError('Symbol cannot be new\'ed');
+    }
+    $defineProperty(Symbol.prototype, 'constructor', nonEnum(Symbol));
+    $defineProperty(Symbol.prototype, 'toString', method(function() {
+      var symbolValue = this[symbolDataProperty];
+      return symbolValue[symbolInternalProperty];
+    }));
+    $defineProperty(Symbol.prototype, 'valueOf', method(function() {
+      var symbolValue = this[symbolDataProperty];
+      if (!symbolValue)
+        throw TypeError('Conversion from symbol to string');
+      if (!getOption('symbols'))
+        return symbolValue[symbolInternalProperty];
+      return symbolValue;
+    }));
+    function SymbolValue(description) {
+      var key = newUniqueString();
+      $defineProperty(this, symbolDataProperty, {value: this});
+      $defineProperty(this, symbolInternalProperty, {value: key});
+      $defineProperty(this, symbolDescriptionProperty, {value: description});
+      freeze(this);
+      symbolValues[key] = this;
+    }
+    $defineProperty(SymbolValue.prototype, 'constructor', nonEnum(Symbol));
+    $defineProperty(SymbolValue.prototype, 'toString', {
+      value: Symbol.prototype.toString,
+      enumerable: false
+    });
+    $defineProperty(SymbolValue.prototype, 'valueOf', {
+      value: Symbol.prototype.valueOf,
+      enumerable: false
+    });
+    var hashProperty = createPrivateName();
+    var hashPropertyDescriptor = {value: undefined};
+    var hashObjectProperties = {
+      hash: {value: undefined},
+      self: {value: undefined}
+    };
+    var hashCounter = 0;
+    function getOwnHashObject(object) {
+      var hashObject = object[hashProperty];
+      if (hashObject && hashObject.self === object)
+        return hashObject;
+      if ($isExtensible(object)) {
+        hashObjectProperties.hash.value = hashCounter++;
+        hashObjectProperties.self.value = object;
+        hashPropertyDescriptor.value = $create(null, hashObjectProperties);
+        $defineProperty(object, hashProperty, hashPropertyDescriptor);
+        return hashPropertyDescriptor.value;
+      }
+      return undefined;
+    }
+    function freeze(object) {
+      getOwnHashObject(object);
+      return $freeze.apply(this, arguments);
+    }
+    function preventExtensions(object) {
+      getOwnHashObject(object);
+      return $preventExtensions.apply(this, arguments);
+    }
+    function seal(object) {
+      getOwnHashObject(object);
+      return $seal.apply(this, arguments);
+    }
+    freeze(SymbolValue.prototype);
+    function isSymbolString(s) {
+      return symbolValues[s] || privateNames[s];
+    }
+    function toProperty(name) {
+      if (isShimSymbol(name))
+        return name[symbolInternalProperty];
+      return name;
+    }
+    function removeSymbolKeys(array) {
+      var rv = [];
+      for (var i = 0; i < array.length; i++) {
+        if (!isSymbolString(array[i])) {
+          rv.push(array[i]);
+        }
+      }
+      return rv;
+    }
+    function getOwnPropertyNames(object) {
+      return removeSymbolKeys($getOwnPropertyNames(object));
+    }
+    function keys(object) {
+      return removeSymbolKeys($keys(object));
+    }
+    function getOwnPropertySymbols(object) {
+      var rv = [];
+      var names = $getOwnPropertyNames(object);
+      for (var i = 0; i < names.length; i++) {
+        var symbol = symbolValues[names[i]];
+        if (symbol) {
+          rv.push(symbol);
+        }
+      }
+      return rv;
+    }
+    function getOwnPropertyDescriptor(object, name) {
+      return $getOwnPropertyDescriptor(object, toProperty(name));
+    }
+    function hasOwnProperty(name) {
+      return $hasOwnProperty.call(this, toProperty(name));
+    }
+    function getOption(name) {
+      return global.$traceurRuntime.options[name];
+    }
+    function defineProperty(object, name, descriptor) {
+      if (isShimSymbol(name)) {
+        name = name[symbolInternalProperty];
+      }
+      $defineProperty(object, name, descriptor);
+      return object;
+    }
+    function polyfillObject(Object) {
+      $defineProperty(Object, 'defineProperty', {value: defineProperty});
+      $defineProperty(Object, 'getOwnPropertyNames', {value: getOwnPropertyNames});
+      $defineProperty(Object, 'getOwnPropertyDescriptor', {value: getOwnPropertyDescriptor});
+      $defineProperty(Object.prototype, 'hasOwnProperty', {value: hasOwnProperty});
+      $defineProperty(Object, 'freeze', {value: freeze});
+      $defineProperty(Object, 'preventExtensions', {value: preventExtensions});
+      $defineProperty(Object, 'seal', {value: seal});
+      $defineProperty(Object, 'keys', {value: keys});
+    }
+    function exportStar(object) {
+      for (var i = 1; i < arguments.length; i++) {
+        var names = $getOwnPropertyNames(arguments[i]);
+        for (var j = 0; j < names.length; j++) {
+          var name = names[j];
+          if (name === '__esModule' || isSymbolString(name))
+            continue;
+          (function(mod, name) {
+            $defineProperty(object, name, {
+              get: function() {
+                return mod[name];
+              },
+              enumerable: true
+            });
+          })(arguments[i], names[j]);
+        }
+      }
+      return object;
+    }
+    function isObject(x) {
+      return x != null && (typeof x === 'object' || typeof x === 'function');
+    }
+    function toObject(x) {
+      if (x == null)
+        throw $TypeError();
+      return $Object(x);
+    }
+    function checkObjectCoercible(argument) {
+      if (argument == null) {
+        throw new TypeError('Value cannot be converted to an Object');
+      }
+      return argument;
+    }
+    function polyfillSymbol(global, Symbol) {
+      if (!global.Symbol) {
+        global.Symbol = Symbol;
+        Object.getOwnPropertySymbols = getOwnPropertySymbols;
+      }
+      if (!global.Symbol.iterator) {
+        global.Symbol.iterator = Symbol('Symbol.iterator');
+      }
+      if (!global.Symbol.observer) {
+        global.Symbol.observer = Symbol('Symbol.observer');
+      }
+    }
+    function setupGlobals(global) {
+      polyfillSymbol(global, Symbol);
+      global.Reflect = global.Reflect || {};
+      global.Reflect.global = global.Reflect.global || global;
+      polyfillObject(global.Object);
+    }
+    setupGlobals(global);
+    global.$traceurRuntime = {
+      call: tailCall,
+      checkObjectCoercible: checkObjectCoercible,
+      construct: construct,
+      continuation: createContinuation,
+      createPrivateName: createPrivateName,
+      defineProperties: $defineProperties,
+      defineProperty: $defineProperty,
+      exportStar: exportStar,
+      getOwnHashObject: getOwnHashObject,
+      getOwnPropertyDescriptor: $getOwnPropertyDescriptor,
+      getOwnPropertyNames: $getOwnPropertyNames,
+      initTailRecursiveFunction: initTailRecursiveFunction,
+      isObject: isObject,
+      isPrivateName: isPrivateName,
+      isSymbolString: isSymbolString,
+      keys: $keys,
+      options: {},
+      setupGlobals: setupGlobals,
+      toObject: toObject,
+      toProperty: toProperty,
+      typeof: typeOf
+    };
+  })();
+})(typeof window !== 'undefined' ? window : typeof global !== 'undefined' ? global : typeof self !== 'undefined' ? self : this);
+(function() {
+  function buildFromEncodedParts(opt_scheme, opt_userInfo, opt_domain, opt_port, opt_path, opt_queryData, opt_fragment) {
+    var out = [];
+    if (opt_scheme) {
+      out.push(opt_scheme, ':');
+    }
+    if (opt_domain) {
+      out.push('//');
+      if (opt_userInfo) {
+        out.push(opt_userInfo, '@');
+      }
+      out.push(opt_domain);
+      if (opt_port) {
+        out.push(':', opt_port);
+      }
+    }
+    if (opt_path) {
+      out.push(opt_path);
+    }
+    if (opt_queryData) {
+      out.push('?', opt_queryData);
+    }
+    if (opt_fragment) {
+      out.push('#', opt_fragment);
+    }
+    return out.join('');
+  }
+  ;
+  var splitRe = new RegExp('^' + '(?:' + '([^:/?#.]+)' + ':)?' + '(?://' + '(?:([^/?#]*)@)?' + '([\\w\\d\\-\\u0100-\\uffff.%]*)' + '(?::([0-9]+))?' + ')?' + '([^?#]+)?' + '(?:\\?([^#]*))?' + '(?:#(.*))?' + '$');
+  var ComponentIndex = {
+    SCHEME: 1,
+    USER_INFO: 2,
+    DOMAIN: 3,
+    PORT: 4,
+    PATH: 5,
+    QUERY_DATA: 6,
+    FRAGMENT: 7
+  };
+  function split(uri) {
+    return (uri.match(splitRe));
+  }
+  function removeDotSegments(path) {
+    if (path === '/')
+      return '/';
+    var leadingSlash = path[0] === '/' ? '/' : '';
+    var trailingSlash = path.slice(-1) === '/' ? '/' : '';
+    var segments = path.split('/');
+    var out = [];
+    var up = 0;
+    for (var pos = 0; pos < segments.length; pos++) {
+      var segment = segments[pos];
+      switch (segment) {
+        case '':
+        case '.':
+          break;
+        case '..':
+          if (out.length)
+            out.pop();
+          else
+            up++;
+          break;
+        default:
+          out.push(segment);
+      }
+    }
+    if (!leadingSlash) {
+      while (up-- > 0) {
+        out.unshift('..');
+      }
+      if (out.length === 0)
+        out.push('.');
+    }
+    return leadingSlash + out.join('/') + trailingSlash;
+  }
+  function joinAndCanonicalizePath(parts) {
+    var path = parts[ComponentIndex.PATH] || '';
+    path = removeDotSegments(path);
+    parts[ComponentIndex.PATH] = path;
+    return buildFromEncodedParts(parts[ComponentIndex.SCHEME], parts[ComponentIndex.USER_INFO], parts[ComponentIndex.DOMAIN], parts[ComponentIndex.PORT], parts[ComponentIndex.PATH], parts[ComponentIndex.QUERY_DATA], parts[ComponentIndex.FRAGMENT]);
+  }
+  function canonicalizeUrl(url) {
+    var parts = split(url);
+    return joinAndCanonicalizePath(parts);
+  }
+  function resolveUrl(base, url) {
+    var parts = split(url);
+    var baseParts = split(base);
+    if (parts[ComponentIndex.SCHEME]) {
+      return joinAndCanonicalizePath(parts);
+    } else {
+      parts[ComponentIndex.SCHEME] = baseParts[ComponentIndex.SCHEME];
+    }
+    for (var i = ComponentIndex.SCHEME; i <= ComponentIndex.PORT; i++) {
+      if (!parts[i]) {
+        parts[i] = baseParts[i];
+      }
+    }
+    if (parts[ComponentIndex.PATH][0] == '/') {
+      return joinAndCanonicalizePath(parts);
+    }
+    var path = baseParts[ComponentIndex.PATH];
+    var index = path.lastIndexOf('/');
+    path = path.slice(0, index + 1) + parts[ComponentIndex.PATH];
+    parts[ComponentIndex.PATH] = path;
+    return joinAndCanonicalizePath(parts);
+  }
+  function isAbsolute(name) {
+    if (!name)
+      return false;
+    if (name[0] === '/')
+      return true;
+    var parts = split(name);
+    if (parts[ComponentIndex.SCHEME])
+      return true;
+    return false;
+  }
+  $traceurRuntime.canonicalizeUrl = canonicalizeUrl;
+  $traceurRuntime.isAbsolute = isAbsolute;
+  $traceurRuntime.removeDotSegments = removeDotSegments;
+  $traceurRuntime.resolveUrl = resolveUrl;
+})();
+(function(global) {
+  'use strict';
+  var $__1 = $traceurRuntime,
+      canonicalizeUrl = $__1.canonicalizeUrl,
+      resolveUrl = $__1.resolveUrl,
+      isAbsolute = $__1.isAbsolute;
+  var moduleInstantiators = Object.create(null);
+  var baseURL;
+  if (global.location && global.location.href)
+    baseURL = resolveUrl(global.location.href, './');
+  else
+    baseURL = '';
+  function UncoatedModuleEntry(url, uncoatedModule) {
+    this.url = url;
+    this.value_ = uncoatedModule;
+  }
+  function ModuleEvaluationError(erroneousModuleName, cause) {
+    this.message = this.constructor.name + ': ' + this.stripCause(cause) + ' in ' + erroneousModuleName;
+    if (!(cause instanceof ModuleEvaluationError) && cause.stack)
+      this.stack = this.stripStack(cause.stack);
+    else
+      this.stack = '';
+  }
+  ModuleEvaluationError.prototype = Object.create(Error.prototype);
+  ModuleEvaluationError.prototype.constructor = ModuleEvaluationError;
+  ModuleEvaluationError.prototype.stripError = function(message) {
+    return message.replace(/.*Error:/, this.constructor.name + ':');
+  };
+  ModuleEvaluationError.prototype.stripCause = function(cause) {
+    if (!cause)
+      return '';
+    if (!cause.message)
+      return cause + '';
+    return this.stripError(cause.message);
+  };
+  ModuleEvaluationError.prototype.loadedBy = function(moduleName) {
+    this.stack += '\n loaded by ' + moduleName;
+  };
+  ModuleEvaluationError.prototype.stripStack = function(causeStack) {
+    var stack = [];
+    causeStack.split('\n').some((function(frame) {
+      if (/UncoatedModuleInstantiator/.test(frame))
+        return true;
+      stack.push(frame);
+    }));
+    stack[0] = this.stripError(stack[0]);
+    return stack.join('\n');
+  };
+  function beforeLines(lines, number) {
+    var result = [];
+    var first = number - 3;
+    if (first < 0)
+      first = 0;
+    for (var i = first; i < number; i++) {
+      result.push(lines[i]);
+    }
+    return result;
+  }
+  function afterLines(lines, number) {
+    var last = number + 1;
+    if (last > lines.length - 1)
+      last = lines.length - 1;
+    var result = [];
+    for (var i = number; i <= last; i++) {
+      result.push(lines[i]);
+    }
+    return result;
+  }
+  function columnSpacing(columns) {
+    var result = '';
+    for (var i = 0; i < columns - 1; i++) {
+      result += '-';
+    }
+    return result;
+  }
+  function UncoatedModuleInstantiator(url, func) {
+    UncoatedModuleEntry.call(this, url, null);
+    this.func = func;
+  }
+  UncoatedModuleInstantiator.prototype = Object.create(UncoatedModuleEntry.prototype);
+  UncoatedModuleInstantiator.prototype.getUncoatedModule = function() {
+    var $__0 = this;
+    if (this.value_)
+      return this.value_;
+    try {
+      var relativeRequire;
+      if (typeof $traceurRuntime !== undefined && $traceurRuntime.require) {
+        relativeRequire = $traceurRuntime.require.bind(null, this.url);
+      }
+      return this.value_ = this.func.call(global, relativeRequire);
+    } catch (ex) {
+      if (ex instanceof ModuleEvaluationError) {
+        ex.loadedBy(this.url);
+        throw ex;
+      }
+      if (ex.stack) {
+        var lines = this.func.toString().split('\n');
+        var evaled = [];
+        ex.stack.split('\n').some((function(frame, index) {
+          if (frame.indexOf('UncoatedModuleInstantiator.getUncoatedModule') > 0)
+            return true;
+          var m = /(at\s[^\s]*\s).*>:(\d*):(\d*)\)/.exec(frame);
+          if (m) {
+            var line = parseInt(m[2], 10);
+            evaled = evaled.concat(beforeLines(lines, line));
+            if (index === 1) {
+              evaled.push(columnSpacing(m[3]) + '^ ' + $__0.url);
+            } else {
+              evaled.push(columnSpacing(m[3]) + '^');
+            }
+            evaled = evaled.concat(afterLines(lines, line));
+            evaled.push('= = = = = = = = =');
+          } else {
+            evaled.push(frame);
+          }
+        }));
+        ex.stack = evaled.join('\n');
+      }
+      throw new ModuleEvaluationError(this.url, ex);
+    }
+  };
+  function getUncoatedModuleInstantiator(name) {
+    if (!name)
+      return ;
+    var url = ModuleStore.normalize(name);
+    return moduleInstantiators[url];
+  }
+  ;
+  var moduleInstances = Object.create(null);
+  var liveModuleSentinel = {};
+  function Module(uncoatedModule) {
+    var isLive = arguments[1];
+    var coatedModule = Object.create(null);
+    Object.getOwnPropertyNames(uncoatedModule).forEach((function(name) {
+      var getter,
+          value;
+      if (isLive === liveModuleSentinel) {
+        var descr = Object.getOwnPropertyDescriptor(uncoatedModule, name);
+        if (descr.get)
+          getter = descr.get;
+      }
+      if (!getter) {
+        value = uncoatedModule[name];
+        getter = function() {
+          return value;
+        };
+      }
+      Object.defineProperty(coatedModule, name, {
+        get: getter,
+        enumerable: true
+      });
+    }));
+    Object.preventExtensions(coatedModule);
+    return coatedModule;
+  }
+  var ModuleStore = {
+    normalize: function(name, refererName, refererAddress) {
+      if (typeof name !== 'string')
+        throw new TypeError('module name must be a string, not ' + typeof name);
+      if (isAbsolute(name))
+        return canonicalizeUrl(name);
+      if (/[^\.]\/\.\.\//.test(name)) {
+        throw new Error('module name embeds /../: ' + name);
+      }
+      if (name[0] === '.' && refererName)
+        return resolveUrl(refererName, name);
+      return canonicalizeUrl(name);
+    },
+    get: function(normalizedName) {
+      var m = getUncoatedModuleInstantiator(normalizedName);
+      if (!m)
+        return undefined;
+      var moduleInstance = moduleInstances[m.url];
+      if (moduleInstance)
+        return moduleInstance;
+      moduleInstance = Module(m.getUncoatedModule(), liveModuleSentinel);
+      return moduleInstances[m.url] = moduleInstance;
+    },
+    set: function(normalizedName, module) {
+      normalizedName = String(normalizedName);
+      moduleInstantiators[normalizedName] = new UncoatedModuleInstantiator(normalizedName, (function() {
+        return module;
+      }));
+      moduleInstances[normalizedName] = module;
+    },
+    get baseURL() {
+      return baseURL;
+    },
+    set baseURL(v) {
+      baseURL = String(v);
+    },
+    registerModule: function(name, deps, func) {
+      var normalizedName = ModuleStore.normalize(name);
+      if (moduleInstantiators[normalizedName])
+        throw new Error('duplicate module named ' + normalizedName);
+      moduleInstantiators[normalizedName] = new UncoatedModuleInstantiator(normalizedName, func);
+    },
+    bundleStore: Object.create(null),
+    register: function(name, deps, func) {
+      if (!deps || !deps.length && !func.length) {
+        this.registerModule(name, deps, func);
+      } else {
+        this.bundleStore[name] = {
+          deps: deps,
+          execute: function() {
+            var $__0 = arguments;
+            var depMap = {};
+            deps.forEach((function(dep, index) {
+              return depMap[dep] = $__0[index];
+            }));
+            var registryEntry = func.call(this, depMap);
+            registryEntry.execute.call(this);
+            return registryEntry.exports;
+          }
+        };
+      }
+    },
+    getAnonymousModule: function(func) {
+      return new Module(func.call(global), liveModuleSentinel);
+    },
+    getForTesting: function(name) {
+      var $__0 = this;
+      if (!this.testingPrefix_) {
+        Object.keys(moduleInstances).some((function(key) {
+          var m = /(traceur@[^\/]*\/)/.exec(key);
+          if (m) {
+            $__0.testingPrefix_ = m[1];
+            return true;
+          }
+        }));
+      }
+      return this.get(this.testingPrefix_ + name);
+    }
+  };
+  var moduleStoreModule = new Module({ModuleStore: ModuleStore});
+  ModuleStore.set('@traceur/src/runtime/ModuleStore.js', moduleStoreModule);
+  var setupGlobals = $traceurRuntime.setupGlobals;
+  $traceurRuntime.setupGlobals = function(global) {
+    setupGlobals(global);
+  };
+  $traceurRuntime.ModuleStore = ModuleStore;
+  global.System = {
+    register: ModuleStore.register.bind(ModuleStore),
+    registerModule: ModuleStore.registerModule.bind(ModuleStore),
+    get: ModuleStore.get,
+    set: ModuleStore.set,
+    normalize: ModuleStore.normalize
+  };
+})(typeof window !== 'undefined' ? window : typeof global !== 'undefined' ? global : typeof self !== 'undefined' ? self : this);
+System.registerModule("traceur-runtime@0.0.88/src/runtime/async.js", [], function() {
+  "use strict";
+  var __moduleName = "traceur-runtime@0.0.88/src/runtime/async.js";
+  if (typeof $traceurRuntime !== 'object') {
+    throw new Error('traceur runtime not found.');
+  }
+  var $createPrivateName = $traceurRuntime.createPrivateName;
+  var $defineProperty = $traceurRuntime.defineProperty;
+  var $defineProperties = $traceurRuntime.defineProperties;
+  var $create = Object.create;
+  var thisName = $createPrivateName();
+  var argsName = $createPrivateName();
+  var observeName = $createPrivateName();
+  function AsyncGeneratorFunction() {}
+  function AsyncGeneratorFunctionPrototype() {}
+  AsyncGeneratorFunction.prototype = AsyncGeneratorFunctionPrototype;
+  AsyncGeneratorFunctionPrototype.constructor = AsyncGeneratorFunction;
+  $defineProperty(AsyncGeneratorFunctionPrototype, 'constructor', {enumerable: false});
+  var AsyncGeneratorContext = (function() {
+    function AsyncGeneratorContext(observer) {
+      var $__0 = this;
+      this.decoratedObserver = $traceurRuntime.createDecoratedGenerator(observer, (function() {
+        $__0.done = true;
+      }));
+      this.done = false;
+      this.inReturn = false;
+    }
+    return ($traceurRuntime.createClass)(AsyncGeneratorContext, {
+      throw: function(error) {
+        if (!this.inReturn) {
+          throw error;
+        }
+      },
+      yield: function(value) {
+        if (this.done) {
+          this.inReturn = true;
+          throw undefined;
+        }
+        var result;
+        try {
+          result = this.decoratedObserver.next(value);
+        } catch (e) {
+          this.done = true;
+          throw e;
+        }
+        if (result === undefined) {
+          return ;
+        }
+        if (result.done) {
+          this.done = true;
+          this.inReturn = true;
+          throw undefined;
+        }
+        return result.value;
+      },
+      yieldFor: function(observable) {
+        var ctx = this;
+        return $traceurRuntime.observeForEach(observable[$traceurRuntime.toProperty(Symbol.observer)].bind(observable), function(value) {
+          if (ctx.done) {
+            this.return();
+            return ;
+          }
+          var result;
+          try {
+            result = ctx.decoratedObserver.next(value);
+          } catch (e) {
+            ctx.done = true;
+            throw e;
+          }
+          if (result === undefined) {
+            return ;
+          }
+          if (result.done) {
+            ctx.done = true;
+          }
+          return result;
+        });
+      }
+    }, {});
+  }());
+  AsyncGeneratorFunctionPrototype.prototype[Symbol.observer] = function(observer) {
+    var observe = this[observeName];
+    var ctx = new AsyncGeneratorContext(observer);
+    $traceurRuntime.schedule((function() {
+      return observe(ctx);
+    })).then((function(value) {
+      if (!ctx.done) {
+        ctx.decoratedObserver.return(value);
+      }
+    })).catch((function(error) {
+      if (!ctx.done) {
+        ctx.decoratedObserver.throw(error);
+      }
+    }));
+    return ctx.decoratedObserver;
+  };
+  $defineProperty(AsyncGeneratorFunctionPrototype.prototype, Symbol.observer, {enumerable: false});
+  function initAsyncGeneratorFunction(functionObject) {
+    functionObject.prototype = $create(AsyncGeneratorFunctionPrototype.prototype);
+    functionObject.__proto__ = AsyncGeneratorFunctionPrototype;
+    return functionObject;
+  }
+  function createAsyncGeneratorInstance(observe, functionObject) {
+    for (var args = [],
+        $__2 = 2; $__2 < arguments.length; $__2++)
+      args[$__2 - 2] = arguments[$__2];
+    var object = $create(functionObject.prototype);
+    object[thisName] = this;
+    object[argsName] = args;
+    object[observeName] = observe;
+    return object;
+  }
+  function observeForEach(observe, next) {
+    return new Promise((function(resolve, reject) {
+      var generator = observe({
+        next: function(value) {
+          return next.call(generator, value);
+        },
+        throw: function(error) {
+          reject(error);
+        },
+        return: function(value) {
+          resolve(value);
+        }
+      });
+    }));
+  }
+  function schedule(asyncF) {
+    return Promise.resolve().then(asyncF);
+  }
+  var generator = Symbol();
+  var onDone = Symbol();
+  var DecoratedGenerator = (function() {
+    function DecoratedGenerator(_generator, _onDone) {
+      this[generator] = _generator;
+      this[onDone] = _onDone;
+    }
+    return ($traceurRuntime.createClass)(DecoratedGenerator, {
+      next: function(value) {
+        var result = this[generator].next(value);
+        if (result !== undefined && result.done) {
+          this[onDone].call(this);
+        }
+        return result;
+      },
+      throw: function(error) {
+        this[onDone].call(this);
+        return this[generator].throw(error);
+      },
+      return: function(value) {
+        this[onDone].call(this);
+        return this[generator].return(value);
+      }
+    }, {});
+  }());
+  function createDecoratedGenerator(generator, onDone) {
+    return new DecoratedGenerator(generator, onDone);
+  }
+  $traceurRuntime.initAsyncGeneratorFunction = initAsyncGeneratorFunction;
+  $traceurRuntime.createAsyncGeneratorInstance = createAsyncGeneratorInstance;
+  $traceurRuntime.observeForEach = observeForEach;
+  $traceurRuntime.schedule = schedule;
+  $traceurRuntime.createDecoratedGenerator = createDecoratedGenerator;
+  return {};
+});
+System.registerModule("traceur-runtime@0.0.88/src/runtime/classes.js", [], function() {
+  "use strict";
+  var __moduleName = "traceur-runtime@0.0.88/src/runtime/classes.js";
+  var $Object = Object;
+  var $TypeError = TypeError;
+  var $create = $Object.create;
+  var $defineProperties = $traceurRuntime.defineProperties;
+  var $defineProperty = $traceurRuntime.defineProperty;
+  var $getOwnPropertyDescriptor = $traceurRuntime.getOwnPropertyDescriptor;
+  var $getOwnPropertyNames = $traceurRuntime.getOwnPropertyNames;
+  var $getPrototypeOf = Object.getPrototypeOf;
+  var $__0 = Object,
+      getOwnPropertyNames = $__0.getOwnPropertyNames,
+      getOwnPropertySymbols = $__0.getOwnPropertySymbols;
+  function superDescriptor(homeObject, name) {
+    var proto = $getPrototypeOf(homeObject);
+    do {
+      var result = $getOwnPropertyDescriptor(proto, name);
+      if (result)
+        return result;
+      proto = $getPrototypeOf(proto);
+    } while (proto);
+    return undefined;
+  }
+  function superConstructor(ctor) {
+    return ctor.__proto__;
+  }
+  function superGet(self, homeObject, name) {
+    var descriptor = superDescriptor(homeObject, name);
+    if (descriptor) {
+      if (!descriptor.get)
+        return descriptor.value;
+      return descriptor.get.call(self);
+    }
+    return undefined;
+  }
+  function superSet(self, homeObject, name, value) {
+    var descriptor = superDescriptor(homeObject, name);
+    if (descriptor && descriptor.set) {
+      descriptor.set.call(self, value);
+      return value;
+    }
+    throw $TypeError(("super has no setter '" + name + "'."));
+  }
+  function forEachPropertyKey(object, f) {
+    getOwnPropertyNames(object).forEach(f);
+    getOwnPropertySymbols(object).forEach(f);
+  }
+  function getDescriptors(object) {
+    var descriptors = {};
+    forEachPropertyKey(object, (function(key) {
+      descriptors[key] = $getOwnPropertyDescriptor(object, key);
+      descriptors[key].enumerable = false;
+    }));
+    return descriptors;
+  }
+  var nonEnum = {enumerable: false};
+  function makePropertiesNonEnumerable(object) {
+    forEachPropertyKey(object, (function(key) {
+      $defineProperty(object, key, nonEnum);
+    }));
+  }
+  function createClass(ctor, object, staticObject, superClass) {
+    $defineProperty(object, 'constructor', {
+      value: ctor,
+      configurable: true,
+      enumerable: false,
+      writable: true
+    });
+    if (arguments.length > 3) {
+      if (typeof superClass === 'function')
+        ctor.__proto__ = superClass;
+      ctor.prototype = $create(getProtoParent(superClass), getDescriptors(object));
+    } else {
+      makePropertiesNonEnumerable(object);
+      ctor.prototype = object;
+    }
+    $defineProperty(ctor, 'prototype', {
+      configurable: false,
+      writable: false
+    });
+    return $defineProperties(ctor, getDescriptors(staticObject));
+  }
+  function getProtoParent(superClass) {
+    if (typeof superClass === 'function') {
+      var prototype = superClass.prototype;
+      if ($Object(prototype) === prototype || prototype === null)
+        return superClass.prototype;
+      throw new $TypeError('super prototype must be an Object or null');
+    }
+    if (superClass === null)
+      return null;
+    throw new $TypeError(("Super expression must either be null or a function, not " + typeof superClass + "."));
+  }
+  $traceurRuntime.createClass = createClass;
+  $traceurRuntime.superConstructor = superConstructor;
+  $traceurRuntime.superGet = superGet;
+  $traceurRuntime.superSet = superSet;
+  return {};
+});
+System.registerModule("traceur-runtime@0.0.88/src/runtime/destructuring.js", [], function() {
+  "use strict";
+  var __moduleName = "traceur-runtime@0.0.88/src/runtime/destructuring.js";
+  function iteratorToArray(iter) {
+    var rv = [];
+    var i = 0;
+    var tmp;
+    while (!(tmp = iter.next()).done) {
+      rv[i++] = tmp.value;
+    }
+    return rv;
+  }
+  $traceurRuntime.iteratorToArray = iteratorToArray;
+  return {};
+});
+System.registerModule("traceur-runtime@0.0.88/src/runtime/generators.js", [], function() {
+  "use strict";
+  var __moduleName = "traceur-runtime@0.0.88/src/runtime/generators.js";
+  if (typeof $traceurRuntime !== 'object') {
+    throw new Error('traceur runtime not found.');
+  }
+  var createPrivateName = $traceurRuntime.createPrivateName;
+  var $defineProperties = $traceurRuntime.defineProperties;
+  var $defineProperty = $traceurRuntime.defineProperty;
+  var $create = Object.create;
+  var $TypeError = TypeError;
+  function nonEnum(value) {
+    return {
+      configurable: true,
+      enumerable: false,
+      value: value,
+      writable: true
+    };
+  }
+  var ST_NEWBORN = 0;
+  var ST_EXECUTING = 1;
+  var ST_SUSPENDED = 2;
+  var ST_CLOSED = 3;
+  var END_STATE = -2;
+  var RETHROW_STATE = -3;
+  function getInternalError(state) {
+    return new Error('Traceur compiler bug: invalid state in state machine: ' + state);
+  }
+  var RETURN_SENTINEL = {};
+  function GeneratorContext() {
+    this.state = 0;
+    this.GState = ST_NEWBORN;
+    this.storedException = undefined;
+    this.finallyFallThrough = undefined;
+    this.sent_ = undefined;
+    this.returnValue = undefined;
+    this.oldReturnValue = undefined;
+    this.tryStack_ = [];
+  }
+  GeneratorContext.prototype = {
+    pushTry: function(catchState, finallyState) {
+      if (finallyState !== null) {
+        var finallyFallThrough = null;
+        for (var i = this.tryStack_.length - 1; i >= 0; i--) {
+          if (this.tryStack_[i].catch !== undefined) {
+            finallyFallThrough = this.tryStack_[i].catch;
+            break;
+          }
+        }
+        if (finallyFallThrough === null)
+          finallyFallThrough = RETHROW_STATE;
+        this.tryStack_.push({
+          finally: finallyState,
+          finallyFallThrough: finallyFallThrough
+        });
+      }
+      if (catchState !== null) {
+        this.tryStack_.push({catch: catchState});
+      }
+    },
+    popTry: function() {
+      this.tryStack_.pop();
+    },
+    maybeUncatchable: function() {
+      if (this.storedException === RETURN_SENTINEL) {
+        throw RETURN_SENTINEL;
+      }
+    },
+    get sent() {
+      this.maybeThrow();
+      return this.sent_;
+    },
+    set sent(v) {
+      this.sent_ = v;
+    },
+    get sentIgnoreThrow() {
+      return this.sent_;
+    },
+    maybeThrow: function() {
+      if (this.action === 'throw') {
+        this.action = 'next';
+        throw this.sent_;
+      }
+    },
+    end: function() {
+      switch (this.state) {
+        case END_STATE:
+          return this;
+        case RETHROW_STATE:
+          throw this.storedException;
+        default:
+          throw getInternalError(this.state);
+      }
+    },
+    handleException: function(ex) {
+      this.GState = ST_CLOSED;
+      this.state = END_STATE;
+      throw ex;
+    },
+    wrapYieldStar: function(iterator) {
+      var ctx = this;
+      return {
+        next: function(v) {
+          return iterator.next(v);
+        },
+        throw: function(e) {
+          var result;
+          if (e === RETURN_SENTINEL) {
+            if (iterator.return) {
+              result = iterator.return(ctx.returnValue);
+              if (!result.done) {
+                ctx.returnValue = ctx.oldReturnValue;
+                return result;
+              }
+              ctx.returnValue = result.value;
+            }
+            throw e;
+          }
+          if (iterator.throw) {
+            return iterator.throw(e);
+          }
+          iterator.return && iterator.return();
+          throw $TypeError('Inner iterator does not have a throw method');
+        }
+      };
+    }
+  };
+  function nextOrThrow(ctx, moveNext, action, x) {
+    switch (ctx.GState) {
+      case ST_EXECUTING:
+        throw new Error(("\"" + action + "\" on executing generator"));
+      case ST_CLOSED:
+        if (action == 'next') {
+          return {
+            value: undefined,
+            done: true
+          };
+        }
+        if (x === RETURN_SENTINEL) {
+          return {
+            value: ctx.returnValue,
+            done: true
+          };
+        }
+        throw x;
+      case ST_NEWBORN:
+        if (action === 'throw') {
+          ctx.GState = ST_CLOSED;
+          if (x === RETURN_SENTINEL) {
+            return {
+              value: ctx.returnValue,
+              done: true
+            };
+          }
+          throw x;
+        }
+        if (x !== undefined)
+          throw $TypeError('Sent value to newborn generator');
+      case ST_SUSPENDED:
+        ctx.GState = ST_EXECUTING;
+        ctx.action = action;
+        ctx.sent = x;
+        var value;
+        try {
+          value = moveNext(ctx);
+        } catch (ex) {
+          if (ex === RETURN_SENTINEL) {
+            value = ctx;
+          } else {
+            throw ex;
+          }
+        }
+        var done = value === ctx;
+        if (done)
+          value = ctx.returnValue;
+        ctx.GState = done ? ST_CLOSED : ST_SUSPENDED;
+        return {
+          value: value,
+          done: done
+        };
+    }
+  }
+  var ctxName = createPrivateName();
+  var moveNextName = createPrivateName();
+  function GeneratorFunction() {}
+  function GeneratorFunctionPrototype() {}
+  GeneratorFunction.prototype = GeneratorFunctionPrototype;
+  $defineProperty(GeneratorFunctionPrototype, 'constructor', nonEnum(GeneratorFunction));
+  GeneratorFunctionPrototype.prototype = {
+    constructor: GeneratorFunctionPrototype,
+    next: function(v) {
+      return nextOrThrow(this[ctxName], this[moveNextName], 'next', v);
+    },
+    throw: function(v) {
+      return nextOrThrow(this[ctxName], this[moveNextName], 'throw', v);
+    },
+    return: function(v) {
+      this[ctxName].oldReturnValue = this[ctxName].returnValue;
+      this[ctxName].returnValue = v;
+      return nextOrThrow(this[ctxName], this[moveNextName], 'throw', RETURN_SENTINEL);
+    }
+  };
+  $defineProperties(GeneratorFunctionPrototype.prototype, {
+    constructor: {enumerable: false},
+    next: {enumerable: false},
+    throw: {enumerable: false},
+    return: {enumerable: false}
+  });
+  Object.defineProperty(GeneratorFunctionPrototype.prototype, Symbol.iterator, nonEnum(function() {
+    return this;
+  }));
+  function createGeneratorInstance(innerFunction, functionObject, self) {
+    var moveNext = getMoveNext(innerFunction, self);
+    var ctx = new GeneratorContext();
+    var object = $create(functionObject.prototype);
+    object[ctxName] = ctx;
+    object[moveNextName] = moveNext;
+    return object;
+  }
+  function initGeneratorFunction(functionObject) {
+    functionObject.prototype = $create(GeneratorFunctionPrototype.prototype);
+    functionObject.__proto__ = GeneratorFunctionPrototype;
+    return functionObject;
+  }
+  function AsyncFunctionContext() {
+    GeneratorContext.call(this);
+    this.err = undefined;
+    var ctx = this;
+    ctx.result = new Promise(function(resolve, reject) {
+      ctx.resolve = resolve;
+      ctx.reject = reject;
+    });
+  }
+  AsyncFunctionContext.prototype = $create(GeneratorContext.prototype);
+  AsyncFunctionContext.prototype.end = function() {
+    switch (this.state) {
+      case END_STATE:
+        this.resolve(this.returnValue);
+        break;
+      case RETHROW_STATE:
+        this.reject(this.storedException);
+        break;
+      default:
+        this.reject(getInternalError(this.state));
+    }
+  };
+  AsyncFunctionContext.prototype.handleException = function() {
+    this.state = RETHROW_STATE;
+  };
+  function asyncWrap(innerFunction, self) {
+    var moveNext = getMoveNext(innerFunction, self);
+    var ctx = new AsyncFunctionContext();
+    ctx.createCallback = function(newState) {
+      return function(value) {
+        ctx.state = newState;
+        ctx.value = value;
+        moveNext(ctx);
+      };
+    };
+    ctx.errback = function(err) {
+      handleCatch(ctx, err);
+      moveNext(ctx);
+    };
+    moveNext(ctx);
+    return ctx.result;
+  }
+  function getMoveNext(innerFunction, self) {
+    return function(ctx) {
+      while (true) {
+        try {
+          return innerFunction.call(self, ctx);
+        } catch (ex) {
+          handleCatch(ctx, ex);
+        }
+      }
+    };
+  }
+  function handleCatch(ctx, ex) {
+    ctx.storedException = ex;
+    var last = ctx.tryStack_[ctx.tryStack_.length - 1];
+    if (!last) {
+      ctx.handleException(ex);
+      return ;
+    }
+    ctx.state = last.catch !== undefined ? last.catch : last.finally;
+    if (last.finallyFallThrough !== undefined)
+      ctx.finallyFallThrough = last.finallyFallThrough;
+  }
+  $traceurRuntime.asyncWrap = asyncWrap;
+  $traceurRuntime.initGeneratorFunction = initGeneratorFunction;
+  $traceurRuntime.createGeneratorInstance = createGeneratorInstance;
+  return {};
+});
+System.registerModule("traceur-runtime@0.0.88/src/runtime/relativeRequire.js", [], function() {
+  "use strict";
+  var __moduleName = "traceur-runtime@0.0.88/src/runtime/relativeRequire.js";
+  var path;
+  function relativeRequire(callerPath, requiredPath) {
+    path = path || typeof require !== 'undefined' && require('path');
+    function isDirectory(path) {
+      return path.slice(-1) === '/';
+    }
+    function isAbsolute(path) {
+      return path[0] === '/';
+    }
+    function isRelative(path) {
+      return path[0] === '.';
+    }
+    if (isDirectory(requiredPath) || isAbsolute(requiredPath))
+      return ;
+    return isRelative(requiredPath) ? require(path.resolve(path.dirname(callerPath), requiredPath)) : require(requiredPath);
+  }
+  $traceurRuntime.require = relativeRequire;
+  return {};
+});
+System.registerModule("traceur-runtime@0.0.88/src/runtime/spread.js", [], function() {
+  "use strict";
+  var __moduleName = "traceur-runtime@0.0.88/src/runtime/spread.js";
+  function spread() {
+    var rv = [],
+        j = 0,
+        iterResult;
+    for (var i = 0; i < arguments.length; i++) {
+      var valueToSpread = $traceurRuntime.checkObjectCoercible(arguments[i]);
+      if (typeof valueToSpread[$traceurRuntime.toProperty(Symbol.iterator)] !== 'function') {
+        throw new TypeError('Cannot spread non-iterable object.');
+      }
+      var iter = valueToSpread[$traceurRuntime.toProperty(Symbol.iterator)]();
+      while (!(iterResult = iter.next()).done) {
+        rv[j++] = iterResult.value;
+      }
+    }
+    return rv;
+  }
+  $traceurRuntime.spread = spread;
+  return {};
+});
+System.registerModule("traceur-runtime@0.0.88/src/runtime/template.js", [], function() {
+  "use strict";
+  var __moduleName = "traceur-runtime@0.0.88/src/runtime/template.js";
+  var $__0 = Object,
+      defineProperty = $__0.defineProperty,
+      freeze = $__0.freeze;
+  var slice = Array.prototype.slice;
+  var map = Object.create(null);
+  function getTemplateObject(raw) {
+    var cooked = arguments[1];
+    var key = raw.join('${}');
+    var templateObject = map[key];
+    if (templateObject)
+      return templateObject;
+    if (!cooked) {
+      cooked = slice.call(raw);
+    }
+    return map[key] = freeze(defineProperty(cooked, 'raw', {value: freeze(raw)}));
+  }
+  $traceurRuntime.getTemplateObject = getTemplateObject;
+  return {};
+});
+System.registerModule("traceur-runtime@0.0.88/src/runtime/type-assertions.js", [], function() {
+  "use strict";
+  var __moduleName = "traceur-runtime@0.0.88/src/runtime/type-assertions.js";
+  var types = {
+    any: {name: 'any'},
+    boolean: {name: 'boolean'},
+    number: {name: 'number'},
+    string: {name: 'string'},
+    symbol: {name: 'symbol'},
+    void: {name: 'void'}
+  };
+  var GenericType = (function() {
+    function GenericType(type, argumentTypes) {
+      this.type = type;
+      this.argumentTypes = argumentTypes;
+    }
+    return ($traceurRuntime.createClass)(GenericType, {}, {});
+  }());
+  var typeRegister = Object.create(null);
+  function genericType(type) {
+    for (var argumentTypes = [],
+        $__1 = 1; $__1 < arguments.length; $__1++)
+      argumentTypes[$__1 - 1] = arguments[$__1];
+    var typeMap = typeRegister;
+    var key = $traceurRuntime.getOwnHashObject(type).hash;
+    if (!typeMap[key]) {
+      typeMap[key] = Object.create(null);
+    }
+    typeMap = typeMap[key];
+    for (var i = 0; i < argumentTypes.length - 1; i++) {
+      key = $traceurRuntime.getOwnHashObject(argumentTypes[i]).hash;
+      if (!typeMap[key]) {
+        typeMap[key] = Object.create(null);
+      }
+      typeMap = typeMap[key];
+    }
+    var tail = argumentTypes[argumentTypes.length - 1];
+    key = $traceurRuntime.getOwnHashObject(tail).hash;
+    if (!typeMap[key]) {
+      typeMap[key] = new GenericType(type, argumentTypes);
+    }
+    return typeMap[key];
+  }
+  $traceurRuntime.GenericType = GenericType;
+  $traceurRuntime.genericType = genericType;
+  $traceurRuntime.type = types;
+  return {};
+});
+System.registerModule("traceur-runtime@0.0.88/src/runtime/runtime-modules.js", [], function() {
+  "use strict";
+  var __moduleName = "traceur-runtime@0.0.88/src/runtime/runtime-modules.js";
+  System.get("traceur-runtime@0.0.88/src/runtime/relativeRequire.js");
+  System.get("traceur-runtime@0.0.88/src/runtime/spread.js");
+  System.get("traceur-runtime@0.0.88/src/runtime/destructuring.js");
+  System.get("traceur-runtime@0.0.88/src/runtime/classes.js");
+  System.get("traceur-runtime@0.0.88/src/runtime/async.js");
+  System.get("traceur-runtime@0.0.88/src/runtime/generators.js");
+  System.get("traceur-runtime@0.0.88/src/runtime/template.js");
+  System.get("traceur-runtime@0.0.88/src/runtime/type-assertions.js");
+  return {};
+});
+System.get("traceur-runtime@0.0.88/src/runtime/runtime-modules.js" + '');
+System.registerModule("traceur-runtime@0.0.88/src/runtime/polyfills/utils.js", [], function() {
+  "use strict";
+  var __moduleName = "traceur-runtime@0.0.88/src/runtime/polyfills/utils.js";
+  var $ceil = Math.ceil;
+  var $floor = Math.floor;
+  var $isFinite = isFinite;
+  var $isNaN = isNaN;
+  var $pow = Math.pow;
+  var $min = Math.min;
+  var toObject = $traceurRuntime.toObject;
+  function toUint32(x) {
+    return x >>> 0;
+  }
+  function isObject(x) {
+    return x && (typeof x === 'object' || typeof x === 'function');
+  }
+  function isCallable(x) {
+    return typeof x === 'function';
+  }
+  function isNumber(x) {
+    return typeof x === 'number';
+  }
+  function toInteger(x) {
+    x = +x;
+    if ($isNaN(x))
+      return 0;
+    if (x === 0 || !$isFinite(x))
+      return x;
+    return x > 0 ? $floor(x) : $ceil(x);
+  }
+  var MAX_SAFE_LENGTH = $pow(2, 53) - 1;
+  function toLength(x) {
+    var len = toInteger(x);
+    return len < 0 ? 0 : $min(len, MAX_SAFE_LENGTH);
+  }
+  function checkIterable(x) {
+    return !isObject(x) ? undefined : x[Symbol.iterator];
+  }
+  function isConstructor(x) {
+    return isCallable(x);
+  }
+  function createIteratorResultObject(value, done) {
+    return {
+      value: value,
+      done: done
+    };
+  }
+  function maybeDefine(object, name, descr) {
+    if (!(name in object)) {
+      Object.defineProperty(object, name, descr);
+    }
+  }
+  function maybeDefineMethod(object, name, value) {
+    maybeDefine(object, name, {
+      value: value,
+      configurable: true,
+      enumerable: false,
+      writable: true
+    });
+  }
+  function maybeDefineConst(object, name, value) {
+    maybeDefine(object, name, {
+      value: value,
+      configurable: false,
+      enumerable: false,
+      writable: false
+    });
+  }
+  function maybeAddFunctions(object, functions) {
+    for (var i = 0; i < functions.length; i += 2) {
+      var name = functions[i];
+      var value = functions[i + 1];
+      maybeDefineMethod(object, name, value);
+    }
+  }
+  function maybeAddConsts(object, consts) {
+    for (var i = 0; i < consts.length; i += 2) {
+      var name = consts[i];
+      var value = consts[i + 1];
+      maybeDefineConst(object, name, value);
+    }
+  }
+  function maybeAddIterator(object, func, Symbol) {
+    if (!Symbol || !Symbol.iterator || object[Symbol.iterator])
+      return ;
+    if (object['@@iterator'])
+      func = object['@@iterator'];
+    Object.defineProperty(object, Symbol.iterator, {
+      value: func,
+      configurable: true,
+      enumerable: false,
+      writable: true
+    });
+  }
+  var polyfills = [];
+  function registerPolyfill(func) {
+    polyfills.push(func);
+  }
+  function polyfillAll(global) {
+    polyfills.forEach((function(f) {
+      return f(global);
+    }));
+  }
+  return {
+    get toObject() {
+      return toObject;
+    },
+    get toUint32() {
+      return toUint32;
+    },
+    get isObject() {
+      return isObject;
+    },
+    get isCallable() {
+      return isCallable;
+    },
+    get isNumber() {
+      return isNumber;
+    },
+    get toInteger() {
+      return toInteger;
+    },
+    get toLength() {
+      return toLength;
+    },
+    get checkIterable() {
+      return checkIterable;
+    },
+    get isConstructor() {
+      return isConstructor;
+    },
+    get createIteratorResultObject() {
+      return createIteratorResultObject;
+    },
+    get maybeDefine() {
+      return maybeDefine;
+    },
+    get maybeDefineMethod() {
+      return maybeDefineMethod;
+    },
+    get maybeDefineConst() {
+      return maybeDefineConst;
+    },
+    get maybeAddFunctions() {
+      return maybeAddFunctions;
+    },
+    get maybeAddConsts() {
+      return maybeAddConsts;
+    },
+    get maybeAddIterator() {
+      return maybeAddIterator;
+    },
+    get registerPolyfill() {
+      return registerPolyfill;
+    },
+    get polyfillAll() {
+      return polyfillAll;
+    }
+  };
+});
+System.registerModule("traceur-runtime@0.0.88/src/runtime/polyfills/Map.js", [], function() {
+  "use strict";
+  var __moduleName = "traceur-runtime@0.0.88/src/runtime/polyfills/Map.js";
+  var $__0 = System.get("traceur-runtime@0.0.88/src/runtime/polyfills/utils.js"),
+      isObject = $__0.isObject,
+      maybeAddIterator = $__0.maybeAddIterator,
+      registerPolyfill = $__0.registerPolyfill;
+  var getOwnHashObject = $traceurRuntime.getOwnHashObject;
+  var $hasOwnProperty = Object.prototype.hasOwnProperty;
+  var deletedSentinel = {};
+  function lookupIndex(map, key) {
+    if (isObject(key)) {
+      var hashObject = getOwnHashObject(key);
+      return hashObject && map.objectIndex_[hashObject.hash];
+    }
+    if (typeof key === 'string')
+      return map.stringIndex_[key];
+    return map.primitiveIndex_[key];
+  }
+  function initMap(map) {
+    map.entries_ = [];
+    map.objectIndex_ = Object.create(null);
+    map.stringIndex_ = Object.create(null);
+    map.primitiveIndex_ = Object.create(null);
+    map.deletedCount_ = 0;
+  }
+  var Map = (function() {
+    function Map() {
+      var $__10,
+          $__11;
+      var iterable = arguments[0];
+      if (!isObject(this))
+        throw new TypeError('Map called on incompatible type');
+      if ($hasOwnProperty.call(this, 'entries_')) {
+        throw new TypeError('Map can not be reentrantly initialised');
+      }
+      initMap(this);
+      if (iterable !== null && iterable !== undefined) {
+        var $__5 = true;
+        var $__6 = false;
+        var $__7 = undefined;
+        try {
+          for (var $__3 = void 0,
+              $__2 = (iterable)[$traceurRuntime.toProperty(Symbol.iterator)](); !($__5 = ($__3 = $__2.next()).done); $__5 = true) {
+            var $__9 = $__3.value,
+                key = ($__10 = $__9[$traceurRuntime.toProperty(Symbol.iterator)](), ($__11 = $__10.next()).done ? void 0 : $__11.value),
+                value = ($__11 = $__10.next()).done ? void 0 : $__11.value;
+            {
+              this.set(key, value);
+            }
+          }
+        } catch ($__8) {
+          $__6 = true;
+          $__7 = $__8;
+        } finally {
+          try {
+            if (!$__5 && $__2.return != null) {
+              $__2.return();
+            }
+          } finally {
+            if ($__6) {
+              throw $__7;
+            }
+          }
+        }
+      }
+    }
+    return ($traceurRuntime.createClass)(Map, {
+      get size() {
+        return this.entries_.length / 2 - this.deletedCount_;
+      },
+      get: function(key) {
+        var index = lookupIndex(this, key);
+        if (index !== undefined)
+          return this.entries_[index + 1];
+      },
+      set: function(key, value) {
+        var objectMode = isObject(key);
+        var stringMode = typeof key === 'string';
+        var index = lookupIndex(this, key);
+        if (index !== undefined) {
+          this.entries_[index + 1] = value;
+        } else {
+          index = this.entries_.length;
+          this.entries_[index] = key;
+          this.entries_[index + 1] = value;
+          if (objectMode) {
+            var hashObject = getOwnHashObject(key);
+            var hash = hashObject.hash;
+            this.objectIndex_[hash] = index;
+          } else if (stringMode) {
+            this.stringIndex_[key] = index;
+          } else {
+            this.primitiveIndex_[key] = index;
+          }
+        }
+        return this;
+      },
+      has: function(key) {
+        return lookupIndex(this, key) !== undefined;
+      },
+      delete: function(key) {
+        var objectMode = isObject(key);
+        var stringMode = typeof key === 'string';
+        var index;
+        var hash;
+        if (objectMode) {
+          var hashObject = getOwnHashObject(key);
+          if (hashObject) {
+            index = this.objectIndex_[hash = hashObject.hash];
+            delete this.objectIndex_[hash];
+          }
+        } else if (stringMode) {
+          index = this.stringIndex_[key];
+          delete this.stringIndex_[key];
+        } else {
+          index = this.primitiveIndex_[key];
+          delete this.primitiveIndex_[key];
+        }
+        if (index !== undefined) {
+          this.entries_[index] = deletedSentinel;
+          this.entries_[index + 1] = undefined;
+          this.deletedCount_++;
+          return true;
+        }
+        return false;
+      },
+      clear: function() {
+        initMap(this);
+      },
+      forEach: function(callbackFn) {
+        var thisArg = arguments[1];
+        for (var i = 0; i < this.entries_.length; i += 2) {
+          var key = this.entries_[i];
+          var value = this.entries_[i + 1];
+          if (key === deletedSentinel)
+            continue;
+          callbackFn.call(thisArg, value, key, this);
+        }
+      },
+      entries: $traceurRuntime.initGeneratorFunction(function $__12() {
+        var i,
+            key,
+            value;
+        return $traceurRuntime.createGeneratorInstance(function($ctx) {
+          while (true)
+            switch ($ctx.state) {
+              case 0:
+                i = 0;
+                $ctx.state = 12;
+                break;
+              case 12:
+                $ctx.state = (i < this.entries_.length) ? 8 : -2;
+                break;
+              case 4:
+                i += 2;
+                $ctx.state = 12;
+                break;
+              case 8:
+                key = this.entries_[i];
+                value = this.entries_[i + 1];
+                $ctx.state = 9;
+                break;
+              case 9:
+                $ctx.state = (key === deletedSentinel) ? 4 : 6;
+                break;
+              case 6:
+                $ctx.state = 2;
+                return [key, value];
+              case 2:
+                $ctx.maybeThrow();
+                $ctx.state = 4;
+                break;
+              default:
+                return $ctx.end();
+            }
+        }, $__12, this);
+      }),
+      keys: $traceurRuntime.initGeneratorFunction(function $__13() {
+        var i,
+            key,
+            value;
+        return $traceurRuntime.createGeneratorInstance(function($ctx) {
+          while (true)
+            switch ($ctx.state) {
+              case 0:
+                i = 0;
+                $ctx.state = 12;
+                break;
+              case 12:
+                $ctx.state = (i < this.entries_.length) ? 8 : -2;
+                break;
+              case 4:
+                i += 2;
+                $ctx.state = 12;
+                break;
+              case 8:
+                key = this.entries_[i];
+                value = this.entries_[i + 1];
+                $ctx.state = 9;
+                break;
+              case 9:
+                $ctx.state = (key === deletedSentinel) ? 4 : 6;
+                break;
+              case 6:
+                $ctx.state = 2;
+                return key;
+              case 2:
+                $ctx.maybeThrow();
+                $ctx.state = 4;
+                break;
+              default:
+                return $ctx.end();
+            }
+        }, $__13, this);
+      }),
+      values: $traceurRuntime.initGeneratorFunction(function $__14() {
+        var i,
+            key,
+            value;
+        return $traceurRuntime.createGeneratorInstance(function($ctx) {
+          while (true)
+            switch ($ctx.state) {
+              case 0:
+                i = 0;
+                $ctx.state = 12;
+                break;
+              case 12:
+                $ctx.state = (i < this.entries_.length) ? 8 : -2;
+                break;
+              case 4:
+                i += 2;
+                $ctx.state = 12;
+                break;
+              case 8:
+                key = this.entries_[i];
+                value = this.entries_[i + 1];
+                $ctx.state = 9;
+                break;
+              case 9:
+                $ctx.state = (key === deletedSentinel) ? 4 : 6;
+                break;
+              case 6:
+                $ctx.state = 2;
+                return value;
+              case 2:
+                $ctx.maybeThrow();
+                $ctx.state = 4;
+                break;
+              default:
+                return $ctx.end();
+            }
+        }, $__14, this);
+      })
+    }, {});
+  }());
+  Object.defineProperty(Map.prototype, Symbol.iterator, {
+    configurable: true,
+    writable: true,
+    value: Map.prototype.entries
+  });
+  function polyfillMap(global) {
+    var $__9 = global,
+        Object = $__9.Object,
+        Symbol = $__9.Symbol;
+    if (!global.Map)
+      global.Map = Map;
+    var mapPrototype = global.Map.prototype;
+    if (mapPrototype.entries === undefined)
+      global.Map = Map;
+    if (mapPrototype.entries) {
+      maybeAddIterator(mapPrototype, mapPrototype.entries, Symbol);
+      maybeAddIterator(Object.getPrototypeOf(new global.Map().entries()), function() {
+        return this;
+      }, Symbol);
+    }
+  }
+  registerPolyfill(polyfillMap);
+  return {
+    get Map() {
+      return Map;
+    },
+    get polyfillMap() {
+      return polyfillMap;
+    }
+  };
+});
+System.get("traceur-runtime@0.0.88/src/runtime/polyfills/Map.js" + '');
+System.registerModule("traceur-runtime@0.0.88/src/runtime/polyfills/Set.js", [], function() {
+  "use strict";
+  var __moduleName = "traceur-runtime@0.0.88/src/runtime/polyfills/Set.js";
+  var $__0 = System.get("traceur-runtime@0.0.88/src/runtime/polyfills/utils.js"),
+      isObject = $__0.isObject,
+      maybeAddIterator = $__0.maybeAddIterator,
+      registerPolyfill = $__0.registerPolyfill;
+  var Map = System.get("traceur-runtime@0.0.88/src/runtime/polyfills/Map.js").Map;
+  var getOwnHashObject = $traceurRuntime.getOwnHashObject;
+  var $hasOwnProperty = Object.prototype.hasOwnProperty;
+  function initSet(set) {
+    set.map_ = new Map();
+  }
+  var Set = (function() {
+    function Set() {
+      var iterable = arguments[0];
+      if (!isObject(this))
+        throw new TypeError('Set called on incompatible type');
+      if ($hasOwnProperty.call(this, 'map_')) {
+        throw new TypeError('Set can not be reentrantly initialised');
+      }
+      initSet(this);
+      if (iterable !== null && iterable !== undefined) {
+        var $__7 = true;
+        var $__8 = false;
+        var $__9 = undefined;
+        try {
+          for (var $__5 = void 0,
+              $__4 = (iterable)[$traceurRuntime.toProperty(Symbol.iterator)](); !($__7 = ($__5 = $__4.next()).done); $__7 = true) {
+            var item = $__5.value;
+            {
+              this.add(item);
+            }
+          }
+        } catch ($__10) {
+          $__8 = true;
+          $__9 = $__10;
+        } finally {
+          try {
+            if (!$__7 && $__4.return != null) {
+              $__4.return();
+            }
+          } finally {
+            if ($__8) {
+              throw $__9;
+            }
+          }
+        }
+      }
+    }
+    return ($traceurRuntime.createClass)(Set, {
+      get size() {
+        return this.map_.size;
+      },
+      has: function(key) {
+        return this.map_.has(key);
+      },
+      add: function(key) {
+        this.map_.set(key, key);
+        return this;
+      },
+      delete: function(key) {
+        return this.map_.delete(key);
+      },
+      clear: function() {
+        return this.map_.clear();
+      },
+      forEach: function(callbackFn) {
+        var thisArg = arguments[1];
+        var $__2 = this;
+        return this.map_.forEach((function(value, key) {
+          callbackFn.call(thisArg, key, key, $__2);
+        }));
+      },
+      values: $traceurRuntime.initGeneratorFunction(function $__12() {
+        var $__13,
+            $__14;
+        return $traceurRuntime.createGeneratorInstance(function($ctx) {
+          while (true)
+            switch ($ctx.state) {
+              case 0:
+                $__13 = $ctx.wrapYieldStar(this.map_.keys()[Symbol.iterator]());
+                $ctx.sent = void 0;
+                $ctx.action = 'next';
+                $ctx.state = 12;
+                break;
+              case 12:
+                $__14 = $__13[$ctx.action]($ctx.sentIgnoreThrow);
+                $ctx.state = 9;
+                break;
+              case 9:
+                $ctx.state = ($__14.done) ? 3 : 2;
+                break;
+              case 3:
+                $ctx.sent = $__14.value;
+                $ctx.state = -2;
+                break;
+              case 2:
+                $ctx.state = 12;
+                return $__14.value;
+              default:
+                return $ctx.end();
+            }
+        }, $__12, this);
+      }),
+      entries: $traceurRuntime.initGeneratorFunction(function $__15() {
+        var $__16,
+            $__17;
+        return $traceurRuntime.createGeneratorInstance(function($ctx) {
+          while (true)
+            switch ($ctx.state) {
+              case 0:
+                $__16 = $ctx.wrapYieldStar(this.map_.entries()[Symbol.iterator]());
+                $ctx.sent = void 0;
+                $ctx.action = 'next';
+                $ctx.state = 12;
+                break;
+              case 12:
+                $__17 = $__16[$ctx.action]($ctx.sentIgnoreThrow);
+                $ctx.state = 9;
+                break;
+              case 9:
+                $ctx.state = ($__17.done) ? 3 : 2;
+                break;
+              case 3:
+                $ctx.sent = $__17.value;
+                $ctx.state = -2;
+                break;
+              case 2:
+                $ctx.state = 12;
+                return $__17.value;
+              default:
+                return $ctx.end();
+            }
+        }, $__15, this);
+      })
+    }, {});
+  }());
+  Object.defineProperty(Set.prototype, Symbol.iterator, {
+    configurable: true,
+    writable: true,
+    value: Set.prototype.values
+  });
+  Object.defineProperty(Set.prototype, 'keys', {
+    configurable: true,
+    writable: true,
+    value: Set.prototype.values
+  });
+  function polyfillSet(global) {
+    var $__11 = global,
+        Object = $__11.Object,
+        Symbol = $__11.Symbol;
+    if (!global.Set)
+      global.Set = Set;
+    var setPrototype = global.Set.prototype;
+    if (setPrototype.values) {
+      maybeAddIterator(setPrototype, setPrototype.values, Symbol);
+      maybeAddIterator(Object.getPrototypeOf(new global.Set().values()), function() {
+        return this;
+      }, Symbol);
+    }
+  }
+  registerPolyfill(polyfillSet);
+  return {
+    get Set() {
+      return Set;
+    },
+    get polyfillSet() {
+      return polyfillSet;
+    }
+  };
+});
+System.get("traceur-runtime@0.0.88/src/runtime/polyfills/Set.js" + '');
+System.registerModule("traceur-runtime@0.0.88/node_modules/rsvp/lib/rsvp/asap.js", [], function() {
+  "use strict";
+  var __moduleName = "traceur-runtime@0.0.88/node_modules/rsvp/lib/rsvp/asap.js";
+  var len = 0;
+  function asap(callback, arg) {
+    queue[len] = callback;
+    queue[len + 1] = arg;
+    len += 2;
+    if (len === 2) {
+      scheduleFlush();
+    }
+  }
+  var $__default = asap;
+  var browserGlobal = (typeof window !== 'undefined') ? window : {};
+  var BrowserMutationObserver = browserGlobal.MutationObserver || browserGlobal.WebKitMutationObserver;
+  var isWorker = typeof Uint8ClampedArray !== 'undefined' && typeof importScripts !== 'undefined' && typeof MessageChannel !== 'undefined';
+  function useNextTick() {
+    return function() {
+      process.nextTick(flush);
+    };
+  }
+  function useMutationObserver() {
+    var iterations = 0;
+    var observer = new BrowserMutationObserver(flush);
+    var node = document.createTextNode('');
+    observer.observe(node, {characterData: true});
+    return function() {
+      node.data = (iterations = ++iterations % 2);
+    };
+  }
+  function useMessageChannel() {
+    var channel = new MessageChannel();
+    channel.port1.onmessage = flush;
+    return function() {
+      channel.port2.postMessage(0);
+    };
+  }
+  function useSetTimeout() {
+    return function() {
+      setTimeout(flush, 1);
+    };
+  }
+  var queue = new Array(1000);
+  function flush() {
+    for (var i = 0; i < len; i += 2) {
+      var callback = queue[i];
+      var arg = queue[i + 1];
+      callback(arg);
+      queue[i] = undefined;
+      queue[i + 1] = undefined;
+    }
+    len = 0;
+  }
+  var scheduleFlush;
+  if (typeof process !== 'undefined' && {}.toString.call(process) === '[object process]') {
+    scheduleFlush = useNextTick();
+  } else if (BrowserMutationObserver) {
+    scheduleFlush = useMutationObserver();
+  } else if (isWorker) {
+    scheduleFlush = useMessageChannel();
+  } else {
+    scheduleFlush = useSetTimeout();
+  }
+  return {get default() {
+      return $__default;
+    }};
+});
+System.registerModule("traceur-runtime@0.0.88/src/runtime/polyfills/Promise.js", [], function() {
+  "use strict";
+  var __moduleName = "traceur-runtime@0.0.88/src/runtime/polyfills/Promise.js";
+  var async = System.get("traceur-runtime@0.0.88/node_modules/rsvp/lib/rsvp/asap.js").default;
+  var registerPolyfill = System.get("traceur-runtime@0.0.88/src/runtime/polyfills/utils.js").registerPolyfill;
+  var promiseRaw = {};
+  function isPromise(x) {
+    return x && typeof x === 'object' && x.status_ !== undefined;
+  }
+  function idResolveHandler(x) {
+    return x;
+  }
+  function idRejectHandler(x) {
+    throw x;
+  }
+  function chain(promise) {
+    var onResolve = arguments[1] !== (void 0) ? arguments[1] : idResolveHandler;
+    var onReject = arguments[2] !== (void 0) ? arguments[2] : idRejectHandler;
+    var deferred = getDeferred(promise.constructor);
+    switch (promise.status_) {
+      case undefined:
+        throw TypeError;
+      case 0:
+        promise.onResolve_.push(onResolve, deferred);
+        promise.onReject_.push(onReject, deferred);
+        break;
+      case +1:
+        promiseEnqueue(promise.value_, [onResolve, deferred]);
+        break;
+      case -1:
+        promiseEnqueue(promise.value_, [onReject, deferred]);
+        break;
+    }
+    return deferred.promise;
+  }
+  function getDeferred(C) {
+    if (this === $Promise) {
+      var promise = promiseInit(new $Promise(promiseRaw));
+      return {
+        promise: promise,
+        resolve: (function(x) {
+          promiseResolve(promise, x);
+        }),
+        reject: (function(r) {
+          promiseReject(promise, r);
+        })
+      };
+    } else {
+      var result = {};
+      result.promise = new C((function(resolve, reject) {
+        result.resolve = resolve;
+        result.reject = reject;
+      }));
+      return result;
+    }
+  }
+  function promiseSet(promise, status, value, onResolve, onReject) {
+    promise.status_ = status;
+    promise.value_ = value;
+    promise.onResolve_ = onResolve;
+    promise.onReject_ = onReject;
+    return promise;
+  }
+  function promiseInit(promise) {
+    return promiseSet(promise, 0, undefined, [], []);
+  }
+  var Promise = (function() {
+    function Promise(resolver) {
+      if (resolver === promiseRaw)
+        return ;
+      if (typeof resolver !== 'function')
+        throw new TypeError;
+      var promise = promiseInit(this);
+      try {
+        resolver((function(x) {
+          promiseResolve(promise, x);
+        }), (function(r) {
+          promiseReject(promise, r);
+        }));
+      } catch (e) {
+        promiseReject(promise, e);
+      }
+    }
+    return ($traceurRuntime.createClass)(Promise, {
+      catch: function(onReject) {
+        return this.then(undefined, onReject);
+      },
+      then: function(onResolve, onReject) {
+        if (typeof onResolve !== 'function')
+          onResolve = idResolveHandler;
+        if (typeof onReject !== 'function')
+          onReject = idRejectHandler;
+        var that = this;
+        var constructor = this.constructor;
+        return chain(this, function(x) {
+          x = promiseCoerce(constructor, x);
+          return x === that ? onReject(new TypeError) : isPromise(x) ? x.then(onResolve, onReject) : onResolve(x);
+        }, onReject);
+      }
+    }, {
+      resolve: function(x) {
+        if (this === $Promise) {
+          if (isPromise(x)) {
+            return x;
+          }
+          return promiseSet(new $Promise(promiseRaw), +1, x);
+        } else {
+          return new this(function(resolve, reject) {
+            resolve(x);
+          });
+        }
+      },
+      reject: function(r) {
+        if (this === $Promise) {
+          return promiseSet(new $Promise(promiseRaw), -1, r);
+        } else {
+          return new this((function(resolve, reject) {
+            reject(r);
+          }));
+        }
+      },
+      all: function(values) {
+        var deferred = getDeferred(this);
+        var resolutions = [];
+        try {
+          var makeCountdownFunction = function(i) {
+            return (function(x) {
+              resolutions[i] = x;
+              if (--count === 0)
+                deferred.resolve(resolutions);
+            });
+          };
+          var count = 0;
+          var i = 0;
+          var $__6 = true;
+          var $__7 = false;
+          var $__8 = undefined;
+          try {
+            for (var $__4 = void 0,
+                $__3 = (values)[$traceurRuntime.toProperty(Symbol.iterator)](); !($__6 = ($__4 = $__3.next()).done); $__6 = true) {
+              var value = $__4.value;
+              {
+                var countdownFunction = makeCountdownFunction(i);
+                this.resolve(value).then(countdownFunction, (function(r) {
+                  deferred.reject(r);
+                }));
+                ++i;
+                ++count;
+              }
+            }
+          } catch ($__9) {
+            $__7 = true;
+            $__8 = $__9;
+          } finally {
+            try {
+              if (!$__6 && $__3.return != null) {
+                $__3.return();
+              }
+            } finally {
+              if ($__7) {
+                throw $__8;
+              }
+            }
+          }
+          if (count === 0) {
+            deferred.resolve(resolutions);
+          }
+        } catch (e) {
+          deferred.reject(e);
+        }
+        return deferred.promise;
+      },
+      race: function(values) {
+        var deferred = getDeferred(this);
+        try {
+          for (var i = 0; i < values.length; i++) {
+            this.resolve(values[i]).then((function(x) {
+              deferred.resolve(x);
+            }), (function(r) {
+              deferred.reject(r);
+            }));
+          }
+        } catch (e) {
+          deferred.reject(e);
+        }
+        return deferred.promise;
+      }
+    });
+  }());
+  var $Promise = Promise;
+  var $PromiseReject = $Promise.reject;
+  function promiseResolve(promise, x) {
+    promiseDone(promise, +1, x, promise.onResolve_);
+  }
+  function promiseReject(promise, r) {
+    promiseDone(promise, -1, r, promise.onReject_);
+  }
+  function promiseDone(promise, status, value, reactions) {
+    if (promise.status_ !== 0)
+      return ;
+    promiseEnqueue(value, reactions);
+    promiseSet(promise, status, value);
+  }
+  function promiseEnqueue(value, tasks) {
+    async((function() {
+      for (var i = 0; i < tasks.length; i += 2) {
+        promiseHandle(value, tasks[i], tasks[i + 1]);
+      }
+    }));
+  }
+  function promiseHandle(value, handler, deferred) {
+    try {
+      var result = handler(value);
+      if (result === deferred.promise)
+        throw new TypeError;
+      else if (isPromise(result))
+        chain(result, deferred.resolve, deferred.reject);
+      else
+        deferred.resolve(result);
+    } catch (e) {
+      try {
+        deferred.reject(e);
+      } catch (e) {}
+    }
+  }
+  var thenableSymbol = '@@thenable';
+  function isObject(x) {
+    return x && (typeof x === 'object' || typeof x === 'function');
+  }
+  function promiseCoerce(constructor, x) {
+    if (!isPromise(x) && isObject(x)) {
+      var then;
+      try {
+        then = x.then;
+      } catch (r) {
+        var promise = $PromiseReject.call(constructor, r);
+        x[thenableSymbol] = promise;
+        return promise;
+      }
+      if (typeof then === 'function') {
+        var p = x[thenableSymbol];
+        if (p) {
+          return p;
+        } else {
+          var deferred = getDeferred(constructor);
+          x[thenableSymbol] = deferred.promise;
+          try {
+            then.call(x, deferred.resolve, deferred.reject);
+          } catch (r) {
+            deferred.reject(r);
+          }
+          return deferred.promise;
+        }
+      }
+    }
+    return x;
+  }
+  function polyfillPromise(global) {
+    if (!global.Promise)
+      global.Promise = Promise;
+  }
+  registerPolyfill(polyfillPromise);
+  return {
+    get Promise() {
+      return Promise;
+    },
+    get polyfillPromise() {
+      return polyfillPromise;
+    }
+  };
+});
+System.get("traceur-runtime@0.0.88/src/runtime/polyfills/Promise.js" + '');
+System.registerModule("traceur-runtime@0.0.88/src/runtime/polyfills/StringIterator.js", [], function() {
+  "use strict";
+  var __moduleName = "traceur-runtime@0.0.88/src/runtime/polyfills/StringIterator.js";
+  var $__0 = System.get("traceur-runtime@0.0.88/src/runtime/polyfills/utils.js"),
+      createIteratorResultObject = $__0.createIteratorResultObject,
+      isObject = $__0.isObject;
+  var toProperty = $traceurRuntime.toProperty;
+  var hasOwnProperty = Object.prototype.hasOwnProperty;
+  var iteratedString = Symbol('iteratedString');
+  var stringIteratorNextIndex = Symbol('stringIteratorNextIndex');
+  var StringIterator = (function() {
+    var $__2;
+    function StringIterator() {}
+    return ($traceurRuntime.createClass)(StringIterator, ($__2 = {}, Object.defineProperty($__2, "next", {
+      value: function() {
+        var o = this;
+        if (!isObject(o) || !hasOwnProperty.call(o, iteratedString)) {
+          throw new TypeError('this must be a StringIterator object');
+        }
+        var s = o[toProperty(iteratedString)];
+        if (s === undefined) {
+          return createIteratorResultObject(undefined, true);
+        }
+        var position = o[toProperty(stringIteratorNextIndex)];
+        var len = s.length;
+        if (position >= len) {
+          o[toProperty(iteratedString)] = undefined;
+          return createIteratorResultObject(undefined, true);
+        }
+        var first = s.charCodeAt(position);
+        var resultString;
+        if (first < 0xD800 || first > 0xDBFF || position + 1 === len) {
+          resultString = String.fromCharCode(first);
+        } else {
+          var second = s.charCodeAt(position + 1);
+          if (second < 0xDC00 || second > 0xDFFF) {
+            resultString = String.fromCharCode(first);
+          } else {
+            resultString = String.fromCharCode(first) + String.fromCharCode(second);
+          }
+        }
+        o[toProperty(stringIteratorNextIndex)] = position + resultString.length;
+        return createIteratorResultObject(resultString, false);
+      },
+      configurable: true,
+      enumerable: true,
+      writable: true
+    }), Object.defineProperty($__2, Symbol.iterator, {
+      value: function() {
+        return this;
+      },
+      configurable: true,
+      enumerable: true,
+      writable: true
+    }), $__2), {});
+  }());
+  function createStringIterator(string) {
+    var s = String(string);
+    var iterator = Object.create(StringIterator.prototype);
+    iterator[toProperty(iteratedString)] = s;
+    iterator[toProperty(stringIteratorNextIndex)] = 0;
+    return iterator;
+  }
+  return {get createStringIterator() {
+      return createStringIterator;
+    }};
+});
+System.registerModule("traceur-runtime@0.0.88/src/runtime/polyfills/String.js", [], function() {
+  "use strict";
+  var __moduleName = "traceur-runtime@0.0.88/src/runtime/polyfills/String.js";
+  var createStringIterator = System.get("traceur-runtime@0.0.88/src/runtime/polyfills/StringIterator.js").createStringIterator;
+  var $__1 = System.get("traceur-runtime@0.0.88/src/runtime/polyfills/utils.js"),
+      maybeAddFunctions = $__1.maybeAddFunctions,
+      maybeAddIterator = $__1.maybeAddIterator,
+      registerPolyfill = $__1.registerPolyfill;
+  var $toString = Object.prototype.toString;
+  var $indexOf = String.prototype.indexOf;
+  var $lastIndexOf = String.prototype.lastIndexOf;
+  function startsWith(search) {
+    var string = String(this);
+    if (this == null || $toString.call(search) == '[object RegExp]') {
+      throw TypeError();
+    }
+    var stringLength = string.length;
+    var searchString = String(search);
+    var searchLength = searchString.length;
+    var position = arguments.length > 1 ? arguments[1] : undefined;
+    var pos = position ? Number(position) : 0;
+    if (isNaN(pos)) {
+      pos = 0;
+    }
+    var start = Math.min(Math.max(pos, 0), stringLength);
+    return $indexOf.call(string, searchString, pos) == start;
+  }
+  function endsWith(search) {
+    var string = String(this);
+    if (this == null || $toString.call(search) == '[object RegExp]') {
+      throw TypeError();
+    }
+    var stringLength = string.length;
+    var searchString = String(search);
+    var searchLength = searchString.length;
+    var pos = stringLength;
+    if (arguments.length > 1) {
+      var position = arguments[1];
+      if (position !== undefined) {
+        pos = position ? Number(position) : 0;
+        if (isNaN(pos)) {
+          pos = 0;
+        }
+      }
+    }
+    var end = Math.min(Math.max(pos, 0), stringLength);
+    var start = end - searchLength;
+    if (start < 0) {
+      return false;
+    }
+    return $lastIndexOf.call(string, searchString, start) == start;
+  }
+  function includes(search) {
+    if (this == null) {
+      throw TypeError();
+    }
+    var string = String(this);
+    if (search && $toString.call(search) == '[object RegExp]') {
+      throw TypeError();
+    }
+    var stringLength = string.length;
+    var searchString = String(search);
+    var searchLength = searchString.length;
+    var position = arguments.length > 1 ? arguments[1] : undefined;
+    var pos = position ? Number(position) : 0;
+    if (pos != pos) {
+      pos = 0;
+    }
+    var start = Math.min(Math.max(pos, 0), stringLength);
+    if (searchLength + start > stringLength) {
+      return false;
+    }
+    return $indexOf.call(string, searchString, pos) != -1;
+  }
+  function repeat(count) {
+    if (this == null) {
+      throw TypeError();
+    }
+    var string = String(this);
+    var n = count ? Number(count) : 0;
+    if (isNaN(n)) {
+      n = 0;
+    }
+    if (n < 0 || n == Infinity) {
+      throw RangeError();
+    }
+    if (n == 0) {
+      return '';
+    }
+    var result = '';
+    while (n--) {
+      result += string;
+    }
+    return result;
+  }
+  function codePointAt(position) {
+    if (this == null) {
+      throw TypeError();
+    }
+    var string = String(this);
+    var size = string.length;
+    var index = position ? Number(position) : 0;
+    if (isNaN(index)) {
+      index = 0;
+    }
+    if (index < 0 || index >= size) {
+      return undefined;
+    }
+    var first = string.charCodeAt(index);
+    var second;
+    if (first >= 0xD800 && first <= 0xDBFF && size > index + 1) {
+      second = string.charCodeAt(index + 1);
+      if (second >= 0xDC00 && second <= 0xDFFF) {
+        return (first - 0xD800) * 0x400 + second - 0xDC00 + 0x10000;
+      }
+    }
+    return first;
+  }
+  function raw(callsite) {
+    var raw = callsite.raw;
+    var len = raw.length >>> 0;
+    if (len === 0)
+      return '';
+    var s = '';
+    var i = 0;
+    while (true) {
+      s += raw[i];
+      if (i + 1 === len)
+        return s;
+      s += arguments[++i];
+    }
+  }
+  function fromCodePoint(_) {
+    var codeUnits = [];
+    var floor = Math.floor;
+    var highSurrogate;
+    var lowSurrogate;
+    var index = -1;
+    var length = arguments.length;
+    if (!length) {
+      return '';
+    }
+    while (++index < length) {
+      var codePoint = Number(arguments[index]);
+      if (!isFinite(codePoint) || codePoint < 0 || codePoint > 0x10FFFF || floor(codePoint) != codePoint) {
+        throw RangeError('Invalid code point: ' + codePoint);
+      }
+      if (codePoint <= 0xFFFF) {
+        codeUnits.push(codePoint);
+      } else {
+        codePoint -= 0x10000;
+        highSurrogate = (codePoint >> 10) + 0xD800;
+        lowSurrogate = (codePoint % 0x400) + 0xDC00;
+        codeUnits.push(highSurrogate, lowSurrogate);
+      }
+    }
+    return String.fromCharCode.apply(null, codeUnits);
+  }
+  function stringPrototypeIterator() {
+    var o = $traceurRuntime.checkObjectCoercible(this);
+    var s = String(o);
+    return createStringIterator(s);
+  }
+  function polyfillString(global) {
+    var String = global.String;
+    maybeAddFunctions(String.prototype, ['codePointAt', codePointAt, 'endsWith', endsWith, 'includes', includes, 'repeat', repeat, 'startsWith', startsWith]);
+    maybeAddFunctions(String, ['fromCodePoint', fromCodePoint, 'raw', raw]);
+    maybeAddIterator(String.prototype, stringPrototypeIterator, Symbol);
+  }
+  registerPolyfill(polyfillString);
+  return {
+    get startsWith() {
+      return startsWith;
+    },
+    get endsWith() {
+      return endsWith;
+    },
+    get includes() {
+      return includes;
+    },
+    get repeat() {
+      return repeat;
+    },
+    get codePointAt() {
+      return codePointAt;
+    },
+    get raw() {
+      return raw;
+    },
+    get fromCodePoint() {
+      return fromCodePoint;
+    },
+    get stringPrototypeIterator() {
+      return stringPrototypeIterator;
+    },
+    get polyfillString() {
+      return polyfillString;
+    }
+  };
+});
+System.get("traceur-runtime@0.0.88/src/runtime/polyfills/String.js" + '');
+System.registerModule("traceur-runtime@0.0.88/src/runtime/polyfills/ArrayIterator.js", [], function() {
+  "use strict";
+  var __moduleName = "traceur-runtime@0.0.88/src/runtime/polyfills/ArrayIterator.js";
+  var $__0 = System.get("traceur-runtime@0.0.88/src/runtime/polyfills/utils.js"),
+      toObject = $__0.toObject,
+      toUint32 = $__0.toUint32,
+      createIteratorResultObject = $__0.createIteratorResultObject;
+  var ARRAY_ITERATOR_KIND_KEYS = 1;
+  var ARRAY_ITERATOR_KIND_VALUES = 2;
+  var ARRAY_ITERATOR_KIND_ENTRIES = 3;
+  var ArrayIterator = (function() {
+    var $__2;
+    function ArrayIterator() {}
+    return ($traceurRuntime.createClass)(ArrayIterator, ($__2 = {}, Object.defineProperty($__2, "next", {
+      value: function() {
+        var iterator = toObject(this);
+        var array = iterator.iteratorObject_;
+        if (!array) {
+          throw new TypeError('Object is not an ArrayIterator');
+        }
+        var index = iterator.arrayIteratorNextIndex_;
+        var itemKind = iterator.arrayIterationKind_;
+        var length = toUint32(array.length);
+        if (index >= length) {
+          iterator.arrayIteratorNextIndex_ = Infinity;
+          return createIteratorResultObject(undefined, true);
+        }
+        iterator.arrayIteratorNextIndex_ = index + 1;
+        if (itemKind == ARRAY_ITERATOR_KIND_VALUES)
+          return createIteratorResultObject(array[index], false);
+        if (itemKind == ARRAY_ITERATOR_KIND_ENTRIES)
+          return createIteratorResultObject([index, array[index]], false);
+        return createIteratorResultObject(index, false);
+      },
+      configurable: true,
+      enumerable: true,
+      writable: true
+    }), Object.defineProperty($__2, Symbol.iterator, {
+      value: function() {
+        return this;
+      },
+      configurable: true,
+      enumerable: true,
+      writable: true
+    }), $__2), {});
+  }());
+  function createArrayIterator(array, kind) {
+    var object = toObject(array);
+    var iterator = new ArrayIterator;
+    iterator.iteratorObject_ = object;
+    iterator.arrayIteratorNextIndex_ = 0;
+    iterator.arrayIterationKind_ = kind;
+    return iterator;
+  }
+  function entries() {
+    return createArrayIterator(this, ARRAY_ITERATOR_KIND_ENTRIES);
+  }
+  function keys() {
+    return createArrayIterator(this, ARRAY_ITERATOR_KIND_KEYS);
+  }
+  function values() {
+    return createArrayIterator(this, ARRAY_ITERATOR_KIND_VALUES);
+  }
+  return {
+    get entries() {
+      return entries;
+    },
+    get keys() {
+      return keys;
+    },
+    get values() {
+      return values;
+    }
+  };
+});
+System.registerModule("traceur-runtime@0.0.88/src/runtime/polyfills/Array.js", [], function() {
+  "use strict";
+  var __moduleName = "traceur-runtime@0.0.88/src/runtime/polyfills/Array.js";
+  var $__0 = System.get("traceur-runtime@0.0.88/src/runtime/polyfills/ArrayIterator.js"),
+      entries = $__0.entries,
+      keys = $__0.keys,
+      jsValues = $__0.values;
+  var $__1 = System.get("traceur-runtime@0.0.88/src/runtime/polyfills/utils.js"),
+      checkIterable = $__1.checkIterable,
+      isCallable = $__1.isCallable,
+      isConstructor = $__1.isConstructor,
+      maybeAddFunctions = $__1.maybeAddFunctions,
+      maybeAddIterator = $__1.maybeAddIterator,
+      registerPolyfill = $__1.registerPolyfill,
+      toInteger = $__1.toInteger,
+      toLength = $__1.toLength,
+      toObject = $__1.toObject;
+  function from(arrLike) {
+    var mapFn = arguments[1];
+    var thisArg = arguments[2];
+    var C = this;
+    var items = toObject(arrLike);
+    var mapping = mapFn !== undefined;
+    var k = 0;
+    var arr,
+        len;
+    if (mapping && !isCallable(mapFn)) {
+      throw TypeError();
+    }
+    if (checkIterable(items)) {
+      arr = isConstructor(C) ? new C() : [];
+      var $__5 = true;
+      var $__6 = false;
+      var $__7 = undefined;
+      try {
+        for (var $__3 = void 0,
+            $__2 = (items)[$traceurRuntime.toProperty(Symbol.iterator)](); !($__5 = ($__3 = $__2.next()).done); $__5 = true) {
+          var item = $__3.value;
+          {
+            if (mapping) {
+              arr[k] = mapFn.call(thisArg, item, k);
+            } else {
+              arr[k] = item;
+            }
+            k++;
+          }
+        }
+      } catch ($__8) {
+        $__6 = true;
+        $__7 = $__8;
+      } finally {
+        try {
+          if (!$__5 && $__2.return != null) {
+            $__2.return();
+          }
+        } finally {
+          if ($__6) {
+            throw $__7;
+          }
+        }
+      }
+      arr.length = k;
+      return arr;
+    }
+    len = toLength(items.length);
+    arr = isConstructor(C) ? new C(len) : new Array(len);
+    for (; k < len; k++) {
+      if (mapping) {
+        arr[k] = typeof thisArg === 'undefined' ? mapFn(items[k], k) : mapFn.call(thisArg, items[k], k);
+      } else {
+        arr[k] = items[k];
+      }
+    }
+    arr.length = len;
+    return arr;
+  }
+  function of() {
+    for (var items = [],
+        $__9 = 0; $__9 < arguments.length; $__9++)
+      items[$__9] = arguments[$__9];
+    var C = this;
+    var len = items.length;
+    var arr = isConstructor(C) ? new C(len) : new Array(len);
+    for (var k = 0; k < len; k++) {
+      arr[k] = items[k];
+    }
+    arr.length = len;
+    return arr;
+  }
+  function fill(value) {
+    var start = arguments[1] !== (void 0) ? arguments[1] : 0;
+    var end = arguments[2];
+    var object = toObject(this);
+    var len = toLength(object.length);
+    var fillStart = toInteger(start);
+    var fillEnd = end !== undefined ? toInteger(end) : len;
+    fillStart = fillStart < 0 ? Math.max(len + fillStart, 0) : Math.min(fillStart, len);
+    fillEnd = fillEnd < 0 ? Math.max(len + fillEnd, 0) : Math.min(fillEnd, len);
+    while (fillStart < fillEnd) {
+      object[fillStart] = value;
+      fillStart++;
+    }
+    return object;
+  }
+  function find(predicate) {
+    var thisArg = arguments[1];
+    return findHelper(this, predicate, thisArg);
+  }
+  function findIndex(predicate) {
+    var thisArg = arguments[1];
+    return findHelper(this, predicate, thisArg, true);
+  }
+  function findHelper(self, predicate) {
+    var thisArg = arguments[2];
+    var returnIndex = arguments[3] !== (void 0) ? arguments[3] : false;
+    var object = toObject(self);
+    var len = toLength(object.length);
+    if (!isCallable(predicate)) {
+      throw TypeError();
+    }
+    for (var i = 0; i < len; i++) {
+      var value = object[i];
+      if (predicate.call(thisArg, value, i, object)) {
+        return returnIndex ? i : value;
+      }
+    }
+    return returnIndex ? -1 : undefined;
+  }
+  function polyfillArray(global) {
+    var $__10 = global,
+        Array = $__10.Array,
+        Object = $__10.Object,
+        Symbol = $__10.Symbol;
+    var values = jsValues;
+    if (Symbol && Symbol.iterator && Array.prototype[Symbol.iterator]) {
+      values = Array.prototype[Symbol.iterator];
+    }
+    maybeAddFunctions(Array.prototype, ['entries', entries, 'keys', keys, 'values', values, 'fill', fill, 'find', find, 'findIndex', findIndex]);
+    maybeAddFunctions(Array, ['from', from, 'of', of]);
+    maybeAddIterator(Array.prototype, values, Symbol);
+    maybeAddIterator(Object.getPrototypeOf([].values()), function() {
+      return this;
+    }, Symbol);
+  }
+  registerPolyfill(polyfillArray);
+  return {
+    get from() {
+      return from;
+    },
+    get of() {
+      return of;
+    },
+    get fill() {
+      return fill;
+    },
+    get find() {
+      return find;
+    },
+    get findIndex() {
+      return findIndex;
+    },
+    get polyfillArray() {
+      return polyfillArray;
+    }
+  };
+});
+System.get("traceur-runtime@0.0.88/src/runtime/polyfills/Array.js" + '');
+System.registerModule("traceur-runtime@0.0.88/src/runtime/polyfills/Object.js", [], function() {
+  "use strict";
+  var __moduleName = "traceur-runtime@0.0.88/src/runtime/polyfills/Object.js";
+  var $__0 = System.get("traceur-runtime@0.0.88/src/runtime/polyfills/utils.js"),
+      maybeAddFunctions = $__0.maybeAddFunctions,
+      registerPolyfill = $__0.registerPolyfill;
+  var $__1 = $traceurRuntime,
+      defineProperty = $__1.defineProperty,
+      getOwnPropertyDescriptor = $__1.getOwnPropertyDescriptor,
+      getOwnPropertyNames = $__1.getOwnPropertyNames,
+      isPrivateName = $__1.isPrivateName,
+      keys = $__1.keys;
+  function is(left, right) {
+    if (left === right)
+      return left !== 0 || 1 / left === 1 / right;
+    return left !== left && right !== right;
+  }
+  function assign(target) {
+    for (var i = 1; i < arguments.length; i++) {
+      var source = arguments[i];
+      var props = source == null ? [] : keys(source);
+      var p = void 0,
+          length = props.length;
+      for (p = 0; p < length; p++) {
+        var name = props[p];
+        if (isPrivateName(name))
+          continue;
+        target[name] = source[name];
+      }
+    }
+    return target;
+  }
+  function mixin(target, source) {
+    var props = getOwnPropertyNames(source);
+    var p,
+        descriptor,
+        length = props.length;
+    for (p = 0; p < length; p++) {
+      var name = props[p];
+      if (isPrivateName(name))
+        continue;
+      descriptor = getOwnPropertyDescriptor(source, props[p]);
+      defineProperty(target, props[p], descriptor);
+    }
+    return target;
+  }
+  function polyfillObject(global) {
+    var Object = global.Object;
+    maybeAddFunctions(Object, ['assign', assign, 'is', is, 'mixin', mixin]);
+  }
+  registerPolyfill(polyfillObject);
+  return {
+    get is() {
+      return is;
+    },
+    get assign() {
+      return assign;
+    },
+    get mixin() {
+      return mixin;
+    },
+    get polyfillObject() {
+      return polyfillObject;
+    }
+  };
+});
+System.get("traceur-runtime@0.0.88/src/runtime/polyfills/Object.js" + '');
+System.registerModule("traceur-runtime@0.0.88/src/runtime/polyfills/Number.js", [], function() {
+  "use strict";
+  var __moduleName = "traceur-runtime@0.0.88/src/runtime/polyfills/Number.js";
+  var $__0 = System.get("traceur-runtime@0.0.88/src/runtime/polyfills/utils.js"),
+      isNumber = $__0.isNumber,
+      maybeAddConsts = $__0.maybeAddConsts,
+      maybeAddFunctions = $__0.maybeAddFunctions,
+      registerPolyfill = $__0.registerPolyfill,
+      toInteger = $__0.toInteger;
+  var $abs = Math.abs;
+  var $isFinite = isFinite;
+  var $isNaN = isNaN;
+  var MAX_SAFE_INTEGER = Math.pow(2, 53) - 1;
+  var MIN_SAFE_INTEGER = -Math.pow(2, 53) + 1;
+  var EPSILON = Math.pow(2, -52);
+  function NumberIsFinite(number) {
+    return isNumber(number) && $isFinite(number);
+  }
+  function isInteger(number) {
+    return NumberIsFinite(number) && toInteger(number) === number;
+  }
+  function NumberIsNaN(number) {
+    return isNumber(number) && $isNaN(number);
+  }
+  function isSafeInteger(number) {
+    if (NumberIsFinite(number)) {
+      var integral = toInteger(number);
+      if (integral === number)
+        return $abs(integral) <= MAX_SAFE_INTEGER;
+    }
+    return false;
+  }
+  function polyfillNumber(global) {
+    var Number = global.Number;
+    maybeAddConsts(Number, ['MAX_SAFE_INTEGER', MAX_SAFE_INTEGER, 'MIN_SAFE_INTEGER', MIN_SAFE_INTEGER, 'EPSILON', EPSILON]);
+    maybeAddFunctions(Number, ['isFinite', NumberIsFinite, 'isInteger', isInteger, 'isNaN', NumberIsNaN, 'isSafeInteger', isSafeInteger]);
+  }
+  registerPolyfill(polyfillNumber);
+  return {
+    get MAX_SAFE_INTEGER() {
+      return MAX_SAFE_INTEGER;
+    },
+    get MIN_SAFE_INTEGER() {
+      return MIN_SAFE_INTEGER;
+    },
+    get EPSILON() {
+      return EPSILON;
+    },
+    get isFinite() {
+      return NumberIsFinite;
+    },
+    get isInteger() {
+      return isInteger;
+    },
+    get isNaN() {
+      return NumberIsNaN;
+    },
+    get isSafeInteger() {
+      return isSafeInteger;
+    },
+    get polyfillNumber() {
+      return polyfillNumber;
+    }
+  };
+});
+System.get("traceur-runtime@0.0.88/src/runtime/polyfills/Number.js" + '');
+System.registerModule("traceur-runtime@0.0.88/src/runtime/polyfills/fround.js", [], function() {
+  "use strict";
+  var __moduleName = "traceur-runtime@0.0.88/src/runtime/polyfills/fround.js";
+  var $isFinite = isFinite;
+  var $isNaN = isNaN;
+  var $__0 = Math,
+      LN2 = $__0.LN2,
+      abs = $__0.abs,
+      floor = $__0.floor,
+      log = $__0.log,
+      min = $__0.min,
+      pow = $__0.pow;
+  function packIEEE754(v, ebits, fbits) {
+    var bias = (1 << (ebits - 1)) - 1,
+        s,
+        e,
+        f,
+        ln,
+        i,
+        bits,
+        str,
+        bytes;
+    function roundToEven(n) {
+      var w = floor(n),
+          f = n - w;
+      if (f < 0.5)
+        return w;
+      if (f > 0.5)
+        return w + 1;
+      return w % 2 ? w + 1 : w;
+    }
+    if (v !== v) {
+      e = (1 << ebits) - 1;
+      f = pow(2, fbits - 1);
+      s = 0;
+    } else if (v === Infinity || v === -Infinity) {
+      e = (1 << ebits) - 1;
+      f = 0;
+      s = (v < 0) ? 1 : 0;
+    } else if (v === 0) {
+      e = 0;
+      f = 0;
+      s = (1 / v === -Infinity) ? 1 : 0;
+    } else {
+      s = v < 0;
+      v = abs(v);
+      if (v >= pow(2, 1 - bias)) {
+        e = min(floor(log(v) / LN2), 1023);
+        f = roundToEven(v / pow(2, e) * pow(2, fbits));
+        if (f / pow(2, fbits) >= 2) {
+          e = e + 1;
+          f = 1;
+        }
+        if (e > bias) {
+          e = (1 << ebits) - 1;
+          f = 0;
+        } else {
+          e = e + bias;
+          f = f - pow(2, fbits);
+        }
+      } else {
+        e = 0;
+        f = roundToEven(v / pow(2, 1 - bias - fbits));
+      }
+    }
+    bits = [];
+    for (i = fbits; i; i -= 1) {
+      bits.push(f % 2 ? 1 : 0);
+      f = floor(f / 2);
+    }
+    for (i = ebits; i; i -= 1) {
+      bits.push(e % 2 ? 1 : 0);
+      e = floor(e / 2);
+    }
+    bits.push(s ? 1 : 0);
+    bits.reverse();
+    str = bits.join('');
+    bytes = [];
+    while (str.length) {
+      bytes.push(parseInt(str.substring(0, 8), 2));
+      str = str.substring(8);
+    }
+    return bytes;
+  }
+  function unpackIEEE754(bytes, ebits, fbits) {
+    var bits = [],
+        i,
+        j,
+        b,
+        str,
+        bias,
+        s,
+        e,
+        f;
+    for (i = bytes.length; i; i -= 1) {
+      b = bytes[i - 1];
+      for (j = 8; j; j -= 1) {
+        bits.push(b % 2 ? 1 : 0);
+        b = b >> 1;
+      }
+    }
+    bits.reverse();
+    str = bits.join('');
+    bias = (1 << (ebits - 1)) - 1;
+    s = parseInt(str.substring(0, 1), 2) ? -1 : 1;
+    e = parseInt(str.substring(1, 1 + ebits), 2);
+    f = parseInt(str.substring(1 + ebits), 2);
+    if (e === (1 << ebits) - 1) {
+      return f !== 0 ? NaN : s * Infinity;
+    } else if (e > 0) {
+      return s * pow(2, e - bias) * (1 + f / pow(2, fbits));
+    } else if (f !== 0) {
+      return s * pow(2, -(bias - 1)) * (f / pow(2, fbits));
+    } else {
+      return s < 0 ? -0 : 0;
+    }
+  }
+  function unpackF32(b) {
+    return unpackIEEE754(b, 8, 23);
+  }
+  function packF32(v) {
+    return packIEEE754(v, 8, 23);
+  }
+  function fround(x) {
+    if (x === 0 || !$isFinite(x) || $isNaN(x)) {
+      return x;
+    }
+    return unpackF32(packF32(Number(x)));
+  }
+  return {get fround() {
+      return fround;
+    }};
+});
+System.registerModule("traceur-runtime@0.0.88/src/runtime/polyfills/Math.js", [], function() {
+  "use strict";
+  var __moduleName = "traceur-runtime@0.0.88/src/runtime/polyfills/Math.js";
+  var jsFround = System.get("traceur-runtime@0.0.88/src/runtime/polyfills/fround.js").fround;
+  var $__1 = System.get("traceur-runtime@0.0.88/src/runtime/polyfills/utils.js"),
+      maybeAddFunctions = $__1.maybeAddFunctions,
+      registerPolyfill = $__1.registerPolyfill,
+      toUint32 = $__1.toUint32;
+  var $isFinite = isFinite;
+  var $isNaN = isNaN;
+  var $__2 = Math,
+      abs = $__2.abs,
+      ceil = $__2.ceil,
+      exp = $__2.exp,
+      floor = $__2.floor,
+      log = $__2.log,
+      pow = $__2.pow,
+      sqrt = $__2.sqrt;
+  function clz32(x) {
+    x = toUint32(+x);
+    if (x == 0)
+      return 32;
+    var result = 0;
+    if ((x & 0xFFFF0000) === 0) {
+      x <<= 16;
+      result += 16;
+    }
+    ;
+    if ((x & 0xFF000000) === 0) {
+      x <<= 8;
+      result += 8;
+    }
+    ;
+    if ((x & 0xF0000000) === 0) {
+      x <<= 4;
+      result += 4;
+    }
+    ;
+    if ((x & 0xC0000000) === 0) {
+      x <<= 2;
+      result += 2;
+    }
+    ;
+    if ((x & 0x80000000) === 0) {
+      x <<= 1;
+      result += 1;
+    }
+    ;
+    return result;
+  }
+  function imul(x, y) {
+    x = toUint32(+x);
+    y = toUint32(+y);
+    var xh = (x >>> 16) & 0xffff;
+    var xl = x & 0xffff;
+    var yh = (y >>> 16) & 0xffff;
+    var yl = y & 0xffff;
+    return xl * yl + (((xh * yl + xl * yh) << 16) >>> 0) | 0;
+  }
+  function sign(x) {
+    x = +x;
+    if (x > 0)
+      return 1;
+    if (x < 0)
+      return -1;
+    return x;
+  }
+  function log10(x) {
+    return log(x) * 0.434294481903251828;
+  }
+  function log2(x) {
+    return log(x) * 1.442695040888963407;
+  }
+  function log1p(x) {
+    x = +x;
+    if (x < -1 || $isNaN(x)) {
+      return NaN;
+    }
+    if (x === 0 || x === Infinity) {
+      return x;
+    }
+    if (x === -1) {
+      return -Infinity;
+    }
+    var result = 0;
+    var n = 50;
+    if (x < 0 || x > 1) {
+      return log(1 + x);
+    }
+    for (var i = 1; i < n; i++) {
+      if ((i % 2) === 0) {
+        result -= pow(x, i) / i;
+      } else {
+        result += pow(x, i) / i;
+      }
+    }
+    return result;
+  }
+  function expm1(x) {
+    x = +x;
+    if (x === -Infinity) {
+      return -1;
+    }
+    if (!$isFinite(x) || x === 0) {
+      return x;
+    }
+    return exp(x) - 1;
+  }
+  function cosh(x) {
+    x = +x;
+    if (x === 0) {
+      return 1;
+    }
+    if ($isNaN(x)) {
+      return NaN;
+    }
+    if (!$isFinite(x)) {
+      return Infinity;
+    }
+    if (x < 0) {
+      x = -x;
+    }
+    if (x > 21) {
+      return exp(x) / 2;
+    }
+    return (exp(x) + exp(-x)) / 2;
+  }
+  function sinh(x) {
+    x = +x;
+    if (!$isFinite(x) || x === 0) {
+      return x;
+    }
+    return (exp(x) - exp(-x)) / 2;
+  }
+  function tanh(x) {
+    x = +x;
+    if (x === 0)
+      return x;
+    if (!$isFinite(x))
+      return sign(x);
+    var exp1 = exp(x);
+    var exp2 = exp(-x);
+    return (exp1 - exp2) / (exp1 + exp2);
+  }
+  function acosh(x) {
+    x = +x;
+    if (x < 1)
+      return NaN;
+    if (!$isFinite(x))
+      return x;
+    return log(x + sqrt(x + 1) * sqrt(x - 1));
+  }
+  function asinh(x) {
+    x = +x;
+    if (x === 0 || !$isFinite(x))
+      return x;
+    if (x > 0)
+      return log(x + sqrt(x * x + 1));
+    return -log(-x + sqrt(x * x + 1));
+  }
+  function atanh(x) {
+    x = +x;
+    if (x === -1) {
+      return -Infinity;
+    }
+    if (x === 1) {
+      return Infinity;
+    }
+    if (x === 0) {
+      return x;
+    }
+    if ($isNaN(x) || x < -1 || x > 1) {
+      return NaN;
+    }
+    return 0.5 * log((1 + x) / (1 - x));
+  }
+  function hypot(x, y) {
+    var length = arguments.length;
+    var args = new Array(length);
+    var max = 0;
+    for (var i = 0; i < length; i++) {
+      var n = arguments[i];
+      n = +n;
+      if (n === Infinity || n === -Infinity)
+        return Infinity;
+      n = abs(n);
+      if (n > max)
+        max = n;
+      args[i] = n;
+    }
+    if (max === 0)
+      max = 1;
+    var sum = 0;
+    var compensation = 0;
+    for (var i = 0; i < length; i++) {
+      var n = args[i] / max;
+      var summand = n * n - compensation;
+      var preliminary = sum + summand;
+      compensation = (preliminary - sum) - summand;
+      sum = preliminary;
+    }
+    return sqrt(sum) * max;
+  }
+  function trunc(x) {
+    x = +x;
+    if (x > 0)
+      return floor(x);
+    if (x < 0)
+      return ceil(x);
+    return x;
+  }
+  var fround,
+      f32;
+  if (typeof Float32Array === 'function') {
+    f32 = new Float32Array(1);
+    fround = function(x) {
+      f32[0] = Number(x);
+      return f32[0];
+    };
+  } else {
+    fround = jsFround;
+  }
+  function cbrt(x) {
+    x = +x;
+    if (x === 0)
+      return x;
+    var negate = x < 0;
+    if (negate)
+      x = -x;
+    var result = pow(x, 1 / 3);
+    return negate ? -result : result;
+  }
+  function polyfillMath(global) {
+    var Math = global.Math;
+    maybeAddFunctions(Math, ['acosh', acosh, 'asinh', asinh, 'atanh', atanh, 'cbrt', cbrt, 'clz32', clz32, 'cosh', cosh, 'expm1', expm1, 'fround', fround, 'hypot', hypot, 'imul', imul, 'log10', log10, 'log1p', log1p, 'log2', log2, 'sign', sign, 'sinh', sinh, 'tanh', tanh, 'trunc', trunc]);
+  }
+  registerPolyfill(polyfillMath);
+  return {
+    get clz32() {
+      return clz32;
+    },
+    get imul() {
+      return imul;
+    },
+    get sign() {
+      return sign;
+    },
+    get log10() {
+      return log10;
+    },
+    get log2() {
+      return log2;
+    },
+    get log1p() {
+      return log1p;
+    },
+    get expm1() {
+      return expm1;
+    },
+    get cosh() {
+      return cosh;
+    },
+    get sinh() {
+      return sinh;
+    },
+    get tanh() {
+      return tanh;
+    },
+    get acosh() {
+      return acosh;
+    },
+    get asinh() {
+      return asinh;
+    },
+    get atanh() {
+      return atanh;
+    },
+    get hypot() {
+      return hypot;
+    },
+    get trunc() {
+      return trunc;
+    },
+    get fround() {
+      return fround;
+    },
+    get cbrt() {
+      return cbrt;
+    },
+    get polyfillMath() {
+      return polyfillMath;
+    }
+  };
+});
+System.get("traceur-runtime@0.0.88/src/runtime/polyfills/Math.js" + '');
+System.registerModule("traceur-runtime@0.0.88/src/runtime/polyfills/polyfills.js", [], function() {
+  "use strict";
+  var __moduleName = "traceur-runtime@0.0.88/src/runtime/polyfills/polyfills.js";
+  var polyfillAll = System.get("traceur-runtime@0.0.88/src/runtime/polyfills/utils.js").polyfillAll;
+  polyfillAll(Reflect.global);
+  var setupGlobals = $traceurRuntime.setupGlobals;
+  $traceurRuntime.setupGlobals = function(global) {
+    setupGlobals(global);
+    polyfillAll(global);
+  };
+  return {};
+});
+System.get("traceur-runtime@0.0.88/src/runtime/polyfills/polyfills.js" + '');
+
+(function(global) {
+
+  var defined = {};
+
+  // indexOf polyfill for IE8
+  var indexOf = Array.prototype.indexOf || function(item) {
+    for (var i = 0, l = this.length; i < l; i++)
+      if (this[i] === item)
+        return i;
+    return -1;
+  }
+
+  function dedupe(deps) {
+    var newDeps = [];
+    for (var i = 0, l = deps.length; i < l; i++)
+      if (indexOf.call(newDeps, deps[i]) == -1)
+        newDeps.push(deps[i])
+    return newDeps;
+  }
+
+  function register(name, deps, declare, execute) {
+    if (typeof name != 'string')
+      throw "System.register provided no module name";
+
+    var entry;
+
+    // dynamic
+    if (typeof declare == 'boolean') {
+      entry = {
+        declarative: false,
+        deps: deps,
+        execute: execute,
+        executingRequire: declare
+      };
+    }
+    else {
+      // ES6 declarative
+      entry = {
+        declarative: true,
+        deps: deps,
+        declare: declare
+      };
+    }
+
+    entry.name = name;
+
+    // we never overwrite an existing define
+    if (!(name in defined))
+      defined[name] = entry; 
+
+    entry.deps = dedupe(entry.deps);
+
+    // we have to normalize dependencies
+    // (assume dependencies are normalized for now)
+    // entry.normalizedDeps = entry.deps.map(normalize);
+    entry.normalizedDeps = entry.deps;
+  }
+
+  function buildGroups(entry, groups) {
+    groups[entry.groupIndex] = groups[entry.groupIndex] || [];
+
+    if (indexOf.call(groups[entry.groupIndex], entry) != -1)
+      return;
+
+    groups[entry.groupIndex].push(entry);
+
+    for (var i = 0, l = entry.normalizedDeps.length; i < l; i++) {
+      var depName = entry.normalizedDeps[i];
+      var depEntry = defined[depName];
+
+      // not in the registry means already linked / ES6
+      if (!depEntry || depEntry.evaluated)
+        continue;
+
+      // now we know the entry is in our unlinked linkage group
+      var depGroupIndex = entry.groupIndex + (depEntry.declarative != entry.declarative);
+
+      // the group index of an entry is always the maximum
+      if (depEntry.groupIndex === undefined || depEntry.groupIndex < depGroupIndex) {
+
+        // if already in a group, remove from the old group
+        if (depEntry.groupIndex !== undefined) {
+          groups[depEntry.groupIndex].splice(indexOf.call(groups[depEntry.groupIndex], depEntry), 1);
+
+          // if the old group is empty, then we have a mixed depndency cycle
+          if (groups[depEntry.groupIndex].length == 0)
+            throw new TypeError("Mixed dependency cycle detected");
+        }
+
+        depEntry.groupIndex = depGroupIndex;
+      }
+
+      buildGroups(depEntry, groups);
+    }
+  }
+
+  function link(name) {
+    var startEntry = defined[name];
+
+    startEntry.groupIndex = 0;
+
+    var groups = [];
+
+    buildGroups(startEntry, groups);
+
+    var curGroupDeclarative = !!startEntry.declarative == groups.length % 2;
+    for (var i = groups.length - 1; i >= 0; i--) {
+      var group = groups[i];
+      for (var j = 0; j < group.length; j++) {
+        var entry = group[j];
+
+        // link each group
+        if (curGroupDeclarative)
+          linkDeclarativeModule(entry);
+        else
+          linkDynamicModule(entry);
+      }
+      curGroupDeclarative = !curGroupDeclarative; 
+    }
+  }
+
+  // module binding records
+  var moduleRecords = {};
+  function getOrCreateModuleRecord(name) {
+    return moduleRecords[name] || (moduleRecords[name] = {
+      name: name,
+      dependencies: [],
+      exports: {}, // start from an empty module and extend
+      importers: []
+    })
+  }
+
+  function linkDeclarativeModule(entry) {
+    // only link if already not already started linking (stops at circular)
+    if (entry.module)
+      return;
+
+    var module = entry.module = getOrCreateModuleRecord(entry.name);
+    var exports = entry.module.exports;
+
+    var declaration = entry.declare.call(global, function(name, value) {
+      module.locked = true;
+      exports[name] = value;
+
+      for (var i = 0, l = module.importers.length; i < l; i++) {
+        var importerModule = module.importers[i];
+        if (!importerModule.locked) {
+          var importerIndex = indexOf.call(importerModule.dependencies, module);
+          importerModule.setters[importerIndex](exports);
+        }
+      }
+
+      module.locked = false;
+      return value;
+    });
+
+    module.setters = declaration.setters;
+    module.execute = declaration.execute;
+
+    if (!module.setters || !module.execute)
+      throw new TypeError("Invalid System.register form for " + entry.name);
+
+    // now link all the module dependencies
+    for (var i = 0, l = entry.normalizedDeps.length; i < l; i++) {
+      var depName = entry.normalizedDeps[i];
+      var depEntry = defined[depName];
+      var depModule = moduleRecords[depName];
+
+      // work out how to set depExports based on scenarios...
+      var depExports;
+
+      if (depModule) {
+        depExports = depModule.exports;
+      }
+      else if (depEntry && !depEntry.declarative) {
+        if (depEntry.module.exports && depEntry.module.exports.__esModule)
+          depExports = depEntry.module.exports;
+        else
+          depExports = { 'default': depEntry.module.exports, __useDefault: true };
+      }
+      // in the module registry
+      else if (!depEntry) {
+        depExports = load(depName);
+      }
+      // we have an entry -> link
+      else {
+        linkDeclarativeModule(depEntry);
+        depModule = depEntry.module;
+        depExports = depModule.exports;
+      }
+
+      // only declarative modules have dynamic bindings
+      if (depModule && depModule.importers) {
+        depModule.importers.push(module);
+        module.dependencies.push(depModule);
+      }
+      else
+        module.dependencies.push(null);
+
+      // run the setter for this dependency
+      if (module.setters[i])
+        module.setters[i](depExports);
+    }
+  }
+
+  // An analog to loader.get covering execution of all three layers (real declarative, simulated declarative, simulated dynamic)
+  function getModule(name) {
+    var exports;
+    var entry = defined[name];
+
+    if (!entry) {
+      exports = load(name);
+      if (!exports)
+        throw new Error("Unable to load dependency " + name + ".");
+    }
+
+    else {
+      if (entry.declarative)
+        ensureEvaluated(name, []);
+
+      else if (!entry.evaluated)
+        linkDynamicModule(entry);
+
+      exports = entry.module.exports;
+    }
+
+    if ((!entry || entry.declarative) && exports && exports.__useDefault)
+      return exports['default'];
+
+    return exports;
+  }
+
+  function linkDynamicModule(entry) {
+    if (entry.module)
+      return;
+
+    var exports = {};
+
+    var module = entry.module = { exports: exports, id: entry.name };
+
+    // AMD requires execute the tree first
+    if (!entry.executingRequire) {
+      for (var i = 0, l = entry.normalizedDeps.length; i < l; i++) {
+        var depName = entry.normalizedDeps[i];
+        var depEntry = defined[depName];
+        if (depEntry)
+          linkDynamicModule(depEntry);
+      }
+    }
+
+    // now execute
+    entry.evaluated = true;
+    var output = entry.execute.call(global, function(name) {
+      for (var i = 0, l = entry.deps.length; i < l; i++) {
+        if (entry.deps[i] != name)
+          continue;
+        return getModule(entry.normalizedDeps[i]);
+      }
+      throw new TypeError('Module ' + name + ' not declared as a dependency.');
+    }, exports, module);
+
+    if (output)
+      module.exports = output;
+  }
+
+  /*
+   * Given a module, and the list of modules for this current branch,
+   *  ensure that each of the dependencies of this module is evaluated
+   *  (unless one is a circular dependency already in the list of seen
+   *  modules, in which case we execute it)
+   *
+   * Then we evaluate the module itself depth-first left to right 
+   * execution to match ES6 modules
+   */
+  function ensureEvaluated(moduleName, seen) {
+    var entry = defined[moduleName];
+
+    // if already seen, that means it's an already-evaluated non circular dependency
+    if (!entry || entry.evaluated || !entry.declarative)
+      return;
+
+    // this only applies to declarative modules which late-execute
+
+    seen.push(moduleName);
+
+    for (var i = 0, l = entry.normalizedDeps.length; i < l; i++) {
+      var depName = entry.normalizedDeps[i];
+      if (indexOf.call(seen, depName) == -1) {
+        if (!defined[depName])
+          load(depName);
+        else
+          ensureEvaluated(depName, seen);
+      }
+    }
+
+    if (entry.evaluated)
+      return;
+
+    entry.evaluated = true;
+    entry.module.execute.call(global);
+  }
+
+  // magical execution function
+  var modules = {};
+  function load(name) {
+    if (modules[name])
+      return modules[name];
+
+    var entry = defined[name];
+
+    // first we check if this module has already been defined in the registry
+    if (!entry)
+      throw "Module " + name + " not present.";
+
+    // recursively ensure that the module and all its 
+    // dependencies are linked (with dependency group handling)
+    link(name);
+
+    // now handle dependency execution in correct order
+    ensureEvaluated(name, []);
+
+    // remove from the registry
+    defined[name] = undefined;
+
+    var module = entry.module.exports;
+
+    if (!module || !entry.declarative && module.__esModule !== true)
+      module = { 'default': module, __useDefault: true };
+
+    // return the defined module object
+    return modules[name] = module;
+  };
+
+  return function(mains, declare) {
+
+    var System;
+    var System = {
+      register: register, 
+      get: load, 
+      set: function(name, module) {
+        modules[name] = module; 
+      },
+      newModule: function(module) {
+        return module;
+      },
+      global: global 
+    };
+    System.set('@empty', {});
+
+    declare(System);
+
+    for (var i = 0; i < mains.length; i++)
+      load(mains[i]);
+  }
+
+})(typeof window != 'undefined' ? window : global)
+/* (['mainModule'], function(System) {
+  System.register(...);
+}); */
+
+(['angular2/angular2_sfx'], function(System) {
+
 System.register("rx", [], true, function(require, exports, module) {
   var global = System.global,
       __define = global.define;
@@ -16409,6 +20232,524 @@ System.register("angular2/src/forms/form_builder", ["angular2/src/facade/collect
   };
 });
 
+System.register("angular2/src/router/url", ["angular2/src/facade/lang"], function($__export) {
+  "use strict";
+  var __moduleName = "angular2/src/router/url";
+  var RegExpWrapper,
+      StringWrapper,
+      specialCharacters,
+      escapeRe;
+  function escapeRegex(string) {
+    return StringWrapper.replaceAllMapped(string, escapeRe, (function(match) {
+      return "\\" + match;
+    }));
+  }
+  $__export("escapeRegex", escapeRegex);
+  return {
+    setters: [function($__m) {
+      RegExpWrapper = $__m.RegExpWrapper;
+      StringWrapper = $__m.StringWrapper;
+    }],
+    execute: function() {
+      specialCharacters = ['/', '.', '*', '+', '?', '|', '(', ')', '[', ']', '{', '}', '\\'];
+      escapeRe = RegExpWrapper.create('(\\' + specialCharacters.join('|\\') + ')', 'g');
+      Object.defineProperty(escapeRegex, "parameters", {get: function() {
+          return [[assert.type.string]];
+        }});
+    }
+  };
+});
+
+System.register("angular2/src/router/instruction", ["angular2/src/facade/collection", "angular2/src/facade/async", "angular2/src/facade/lang"], function($__export) {
+  "use strict";
+  var __moduleName = "angular2/src/router/instruction";
+  var Map,
+      MapWrapper,
+      StringMap,
+      StringMapWrapper,
+      List,
+      ListWrapper,
+      Promise,
+      PromiseWrapper,
+      isPresent,
+      RouteParams,
+      Instruction,
+      noopInstruction;
+  function shouldReuseComponent(instr1, instr2) {
+    return instr1.component == instr2.component && StringMapWrapper.equals(instr1.params, instr2.params);
+  }
+  function mapObjAsync(obj, fn) {
+    return PromiseWrapper.all(mapObj(obj, fn));
+  }
+  function mapObj(obj, fn) {
+    var result = ListWrapper.create();
+    StringMapWrapper.forEach(obj, (function(value, key) {
+      return ListWrapper.push(result, fn(value, key));
+    }));
+    return result;
+  }
+  return {
+    setters: [function($__m) {
+      Map = $__m.Map;
+      MapWrapper = $__m.MapWrapper;
+      StringMap = $__m.StringMap;
+      StringMapWrapper = $__m.StringMapWrapper;
+      List = $__m.List;
+      ListWrapper = $__m.ListWrapper;
+    }, function($__m) {
+      Promise = $__m.Promise;
+      PromiseWrapper = $__m.PromiseWrapper;
+    }, function($__m) {
+      isPresent = $__m.isPresent;
+    }],
+    execute: function() {
+      RouteParams = (function() {
+        function RouteParams(params) {
+          this.params = params;
+        }
+        return ($traceurRuntime.createClass)(RouteParams, {get: function(param) {
+            return StringMapWrapper.get(this.params, param);
+          }}, {});
+      }());
+      $__export("RouteParams", RouteParams);
+      Object.defineProperty(RouteParams, "parameters", {get: function() {
+          return [[StringMap]];
+        }});
+      Object.defineProperty(RouteParams.prototype.get, "parameters", {get: function() {
+          return [[assert.type.string]];
+        }});
+      Instruction = (function() {
+        function Instruction() {
+          var $__2 = arguments[0] !== (void 0) ? arguments[0] : {},
+              params = $__2.params,
+              component = $__2.component,
+              children = $__2.children,
+              matchedUrl = $__2.matchedUrl,
+              parentCost = $__2.parentCost;
+          var $__0 = this;
+          this.reuse = false;
+          this.matchedUrl = matchedUrl;
+          this.cost = parentCost;
+          if (isPresent(children)) {
+            this._children = children;
+            var childUrl;
+            StringMapWrapper.forEach(this._children, (function(child, _) {
+              childUrl = child.matchedUrl;
+              $__0.cost += child.cost;
+            }));
+            if (isPresent(childUrl)) {
+              this.matchedUrl += childUrl;
+            }
+          } else {
+            this._children = StringMapWrapper.create();
+          }
+          this.component = component;
+          this.params = params;
+        }
+        return ($traceurRuntime.createClass)(Instruction, {
+          getChildInstruction: function(outletName) {
+            return StringMapWrapper.get(this._children, outletName);
+          },
+          forEachChild: function(fn) {
+            StringMapWrapper.forEach(this._children, fn);
+          },
+          mapChildrenAsync: function(fn) {
+            return mapObjAsync(this._children, fn);
+          },
+          traverseSync: function(fn) {
+            var $__0 = this;
+            this.forEachChild((function(childInstruction, _) {
+              return fn($__0, childInstruction);
+            }));
+            this.forEachChild((function(childInstruction, _) {
+              return childInstruction.traverseSync(fn);
+            }));
+          },
+          traverseAsync: function(fn) {
+            var $__0 = this;
+            return this.mapChildrenAsync(fn).then((function(_) {
+              return $__0.mapChildrenAsync((function(childInstruction, _) {
+                return childInstruction.traverseAsync(fn);
+              }));
+            }));
+          },
+          reuseComponentsFrom: function(oldInstruction) {
+            this.forEachChild((function(childInstruction, outletName) {
+              var oldInstructionChild = oldInstruction.getChildInstruction(outletName);
+              if (shouldReuseComponent(childInstruction, oldInstructionChild)) {
+                childInstruction.reuse = true;
+              }
+            }));
+          }
+        }, {});
+      }());
+      $__export("Instruction", Instruction);
+      Object.defineProperty(Instruction.prototype.getChildInstruction, "parameters", {get: function() {
+          return [[assert.type.string]];
+        }});
+      Object.defineProperty(Instruction.prototype.forEachChild, "parameters", {get: function() {
+          return [[Function]];
+        }});
+      Object.defineProperty(Instruction.prototype.traverseSync, "parameters", {get: function() {
+          return [[Function]];
+        }});
+      Object.defineProperty(Instruction.prototype.traverseAsync, "parameters", {get: function() {
+          return [[Function]];
+        }});
+      Object.defineProperty(Instruction.prototype.reuseComponentsFrom, "parameters", {get: function() {
+          return [[Instruction]];
+        }});
+      Object.defineProperty(shouldReuseComponent, "parameters", {get: function() {
+          return [[Instruction], [Instruction]];
+        }});
+      Object.defineProperty(mapObjAsync, "parameters", {get: function() {
+          return [[StringMap], []];
+        }});
+      Object.defineProperty(mapObj, "parameters", {get: function() {
+          return [[StringMap], []];
+        }});
+      noopInstruction = new Instruction();
+      $__export("noopInstruction", noopInstruction);
+    }
+  };
+});
+
+System.register("angular2/src/router/route_config_impl", ["angular2/src/facade/lang", "angular2/src/facade/collection"], function($__export) {
+  "use strict";
+  var __moduleName = "angular2/src/router/route_config_impl";
+  var CONST,
+      List,
+      Map,
+      RouteConfig;
+  return {
+    setters: [function($__m) {
+      CONST = $__m.CONST;
+    }, function($__m) {
+      List = $__m.List;
+      Map = $__m.Map;
+    }],
+    execute: function() {
+      RouteConfig = (function() {
+        function RouteConfig(configs) {
+          this.configs = configs;
+        }
+        return ($traceurRuntime.createClass)(RouteConfig, {}, {});
+      }());
+      $__export("RouteConfig", RouteConfig);
+      Object.defineProperty(RouteConfig, "annotations", {get: function() {
+          return [new CONST()];
+        }});
+      Object.defineProperty(RouteConfig, "parameters", {get: function() {
+          return [[assert.genericType(List, Map)]];
+        }});
+    }
+  };
+});
+
+System.register("angular2/src/router/pipeline", ["angular2/src/facade/async", "angular2/src/facade/collection", "angular2/src/router/instruction"], function($__export) {
+  "use strict";
+  var __moduleName = "angular2/src/router/pipeline";
+  var Promise,
+      PromiseWrapper,
+      List,
+      ListWrapper,
+      Instruction,
+      Pipeline;
+  return {
+    setters: [function($__m) {
+      Promise = $__m.Promise;
+      PromiseWrapper = $__m.PromiseWrapper;
+    }, function($__m) {
+      List = $__m.List;
+      ListWrapper = $__m.ListWrapper;
+    }, function($__m) {
+      Instruction = $__m.Instruction;
+    }],
+    execute: function() {
+      Pipeline = (function() {
+        function Pipeline() {
+          this.steps = [(function(instruction) {
+            return instruction.traverseSync((function(parentInstruction, childInstruction) {
+              childInstruction.router = parentInstruction.router.childRouter(childInstruction.component);
+            }));
+          }), (function(instruction) {
+            return instruction.router.traverseOutlets((function(outlet, name) {
+              return outlet.canDeactivate(instruction.getChildInstruction(name));
+            }));
+          }), (function(instruction) {
+            return instruction.router.traverseOutlets((function(outlet, name) {
+              return outlet.canActivate(instruction.getChildInstruction(name));
+            }));
+          }), (function(instruction) {
+            return instruction.router.activateOutlets(instruction);
+          })];
+        }
+        return ($traceurRuntime.createClass)(Pipeline, {process: function(instruction) {
+            var steps = this.steps,
+                currentStep = 0;
+            function processOne() {
+              var result = arguments[0] !== (void 0) ? arguments[0] : true;
+              if (currentStep >= steps.length) {
+                return PromiseWrapper.resolve(result);
+              }
+              var step = steps[currentStep];
+              currentStep += 1;
+              return PromiseWrapper.resolve(step(instruction)).then(processOne);
+            }
+            Object.defineProperty(processOne, "parameters", {get: function() {
+                return [[assert.type.any]];
+              }});
+            return processOne();
+          }}, {});
+      }());
+      $__export("Pipeline", Pipeline);
+      Object.defineProperty(Pipeline.prototype.process, "parameters", {get: function() {
+          return [[Instruction]];
+        }});
+    }
+  };
+});
+
+System.register("angular2/src/router/router_outlet", ["angular2/src/facade/async", "angular2/src/facade/lang", "angular2/src/core/annotations_impl/annotations", "angular2/src/core/annotations_impl/di", "angular2/core", "angular2/di", "angular2/src/router/router", "angular2/src/router/instruction"], function($__export) {
+  "use strict";
+  var __moduleName = "angular2/src/router/router_outlet";
+  var Promise,
+      PromiseWrapper,
+      isBlank,
+      Directive,
+      Attribute,
+      Compiler,
+      ViewContainerRef,
+      Injector,
+      bind,
+      routerMod,
+      Instruction,
+      RouteParams,
+      RouterOutlet;
+  return {
+    setters: [function($__m) {
+      Promise = $__m.Promise;
+      PromiseWrapper = $__m.PromiseWrapper;
+    }, function($__m) {
+      isBlank = $__m.isBlank;
+    }, function($__m) {
+      Directive = $__m.Directive;
+    }, function($__m) {
+      Attribute = $__m.Attribute;
+    }, function($__m) {
+      Compiler = $__m.Compiler;
+      ViewContainerRef = $__m.ViewContainerRef;
+    }, function($__m) {
+      Injector = $__m.Injector;
+      bind = $__m.bind;
+    }, function($__m) {
+      routerMod = $__m;
+    }, function($__m) {
+      Instruction = $__m.Instruction;
+      RouteParams = $__m.RouteParams;
+    }],
+    execute: function() {
+      RouterOutlet = (function() {
+        function RouterOutlet(viewContainer, compiler, router, injector, nameAttr) {
+          if (isBlank(nameAttr)) {
+            nameAttr = 'default';
+          }
+          this._router = router;
+          this._viewContainer = viewContainer;
+          this._compiler = compiler;
+          this._injector = injector;
+          this._router.registerOutlet(this, nameAttr);
+        }
+        return ($traceurRuntime.createClass)(RouterOutlet, {
+          activate: function(instruction) {
+            var $__0 = this;
+            return this._compiler.compileInHost(instruction.component).then((function(pv) {
+              var outletInjector = $__0._injector.resolveAndCreateChild([bind(RouteParams).toValue(new RouteParams(instruction.params)), bind(routerMod.Router).toValue(instruction.router)]);
+              $__0._viewContainer.clear();
+              $__0._viewContainer.create(pv, 0, null, outletInjector);
+            }));
+          },
+          canActivate: function(instruction) {
+            return PromiseWrapper.resolve(true);
+          },
+          canDeactivate: function(instruction) {
+            return PromiseWrapper.resolve(true);
+          }
+        }, {});
+      }());
+      $__export("RouterOutlet", RouterOutlet);
+      Object.defineProperty(RouterOutlet, "annotations", {get: function() {
+          return [new Directive({selector: 'router-outlet'})];
+        }});
+      Object.defineProperty(RouterOutlet, "parameters", {get: function() {
+          return [[ViewContainerRef], [Compiler], [routerMod.Router], [Injector], [String, new Attribute('name')]];
+        }});
+      Object.defineProperty(RouterOutlet.prototype.activate, "parameters", {get: function() {
+          return [[Instruction]];
+        }});
+      Object.defineProperty(RouterOutlet.prototype.canActivate, "parameters", {get: function() {
+          return [[assert.type.any]];
+        }});
+      Object.defineProperty(RouterOutlet.prototype.canDeactivate, "parameters", {get: function() {
+          return [[assert.type.any]];
+        }});
+    }
+  };
+});
+
+System.register("angular2/src/router/browser_location", ["angular2/src/dom/dom_adapter"], function($__export) {
+  "use strict";
+  var __moduleName = "angular2/src/router/browser_location";
+  var DOM,
+      BrowserLocation;
+  return {
+    setters: [function($__m) {
+      DOM = $__m.DOM;
+    }],
+    execute: function() {
+      BrowserLocation = (function() {
+        function BrowserLocation() {
+          this._location = DOM.getLocation();
+          this._history = DOM.getHistory();
+          this._baseHref = DOM.getBaseHref();
+        }
+        return ($traceurRuntime.createClass)(BrowserLocation, {
+          onPopState: function(fn) {
+            DOM.getGlobalEventTarget('window').addEventListener('popstate', fn, false);
+          },
+          getBaseHref: function() {
+            return this._baseHref;
+          },
+          path: function() {
+            return this._location.pathname;
+          },
+          pushState: function(state, title, url) {
+            this._history.pushState(state, title, url);
+          },
+          forward: function() {
+            this._history.forward();
+          },
+          back: function() {
+            this._history.back();
+          }
+        }, {});
+      }());
+      $__export("BrowserLocation", BrowserLocation);
+      Object.defineProperty(BrowserLocation.prototype.pushState, "parameters", {get: function() {
+          return [[assert.type.any], [assert.type.string], [assert.type.string]];
+        }});
+    }
+  };
+});
+
+System.register("angular2/src/router/router_link", ["angular2/src/core/annotations_impl/annotations", "angular2/core", "angular2/src/facade/collection", "angular2/src/facade/lang", "angular2/src/dom/dom_adapter", "angular2/src/router/router", "angular2/src/router/location"], function($__export) {
+  "use strict";
+  var __moduleName = "angular2/src/router/router_link";
+  var Directive,
+      onAllChangesDone,
+      ElementRef,
+      StringMap,
+      StringMapWrapper,
+      isPresent,
+      DOM,
+      Router,
+      Location,
+      RouterLink;
+  return {
+    setters: [function($__m) {
+      Directive = $__m.Directive;
+      onAllChangesDone = $__m.onAllChangesDone;
+    }, function($__m) {
+      ElementRef = $__m.ElementRef;
+    }, function($__m) {
+      StringMap = $__m.StringMap;
+      StringMapWrapper = $__m.StringMapWrapper;
+    }, function($__m) {
+      isPresent = $__m.isPresent;
+    }, function($__m) {
+      DOM = $__m.DOM;
+    }, function($__m) {
+      Router = $__m.Router;
+    }, function($__m) {
+      Location = $__m.Location;
+    }],
+    execute: function() {
+      RouterLink = (function() {
+        function RouterLink(elementRef, router, location) {
+          var $__0 = this;
+          this._domEl = elementRef.domElement;
+          this._router = router;
+          this._location = location;
+          this._params = StringMapWrapper.create();
+          DOM.on(this._domEl, 'click', (function(evt) {
+            evt.preventDefault();
+            $__0._router.navigate($__0._href);
+          }));
+        }
+        return ($traceurRuntime.createClass)(RouterLink, {
+          set route(changes) {
+            this._route = changes;
+          },
+          set params(changes) {
+            this._params = changes;
+          },
+          onAllChangesDone: function() {
+            if (isPresent(this._route) && isPresent(this._params)) {
+              var newHref = this._router.generate(this._route, this._params);
+              this._href = this._location.normalizeAbsolutely(newHref);
+              DOM.setAttribute(this._domEl, 'href', this._href);
+            }
+          }
+        }, {});
+      }());
+      $__export("RouterLink", RouterLink);
+      Object.defineProperty(RouterLink, "annotations", {get: function() {
+          return [new Directive({
+            selector: '[router-link]',
+            properties: {
+              'route': 'routerLink',
+              'params': 'routerParams'
+            },
+            lifecycle: [onAllChangesDone]
+          })];
+        }});
+      Object.defineProperty(RouterLink, "parameters", {get: function() {
+          return [[ElementRef], [Router], [Location]];
+        }});
+    }
+  };
+});
+
+System.register("angular2/src/router/route_config_annotation", ["angular2/src/router/route_config_impl"], function($__export) {
+  "use strict";
+  var __moduleName = "angular2/src/router/route_config_annotation";
+  return {
+    setters: [function($__m) {
+      $__export("RouteConfigAnnotation", $__m.RouteConfig);
+    }],
+    execute: function() {}
+  };
+});
+
+System.register("angular2/src/router/route_config_decorator", ["angular2/src/router/route_config_impl", "angular2/src/util/decorators"], function($__export) {
+  "use strict";
+  var __moduleName = "angular2/src/router/route_config_decorator";
+  var RouteConfigAnnotation,
+      makeDecorator,
+      RouteConfig;
+  return {
+    setters: [function($__m) {
+      RouteConfigAnnotation = $__m.RouteConfig;
+    }, function($__m) {
+      makeDecorator = $__m.makeDecorator;
+    }],
+    execute: function() {
+      RouteConfig = makeDecorator(RouteConfigAnnotation);
+      $__export("RouteConfig", RouteConfig);
+    }
+  };
+});
+
 System.register("angular2/src/change_detection/parser/ast", ["angular2/src/facade/lang", "angular2/src/facade/collection"], function($__export) {
   "use strict";
   var __moduleName = "angular2/src/change_detection/parser/ast";
@@ -19764,6 +24105,274 @@ System.register("angular2/src/forms/model", ["angular2/src/facade/lang", "angula
   };
 });
 
+System.register("angular2/src/router/path_recognizer", ["angular2/src/facade/lang", "angular2/src/facade/collection", "angular2/src/router/url"], function($__export) {
+  "use strict";
+  var __moduleName = "angular2/src/router/path_recognizer";
+  var RegExp,
+      RegExpWrapper,
+      RegExpMatcherWrapper,
+      StringWrapper,
+      isPresent,
+      isBlank,
+      BaseException,
+      Map,
+      MapWrapper,
+      StringMap,
+      StringMapWrapper,
+      List,
+      ListWrapper,
+      escapeRegex,
+      StaticSegment,
+      DynamicSegment,
+      StarSegment,
+      paramMatcher,
+      wildcardMatcher,
+      SLASH_RE,
+      PathRecognizer;
+  function parsePathString(route) {
+    if (route[0] === "/") {
+      route = StringWrapper.substring(route, 1);
+    }
+    var segments = splitBySlash(route);
+    var results = ListWrapper.create();
+    var cost = 0;
+    for (var i = 0; i < segments.length; i++) {
+      var segment = segments[i],
+          match = void 0;
+      if (isPresent(match = RegExpWrapper.firstMatch(paramMatcher, segment))) {
+        ListWrapper.push(results, new DynamicSegment(match[1]));
+        cost += 100;
+      } else if (isPresent(match = RegExpWrapper.firstMatch(wildcardMatcher, segment))) {
+        ListWrapper.push(results, new StarSegment(match[1]));
+        cost += 10000;
+      } else if (segment.length > 0) {
+        ListWrapper.push(results, new StaticSegment(segment));
+        cost += 1;
+      }
+    }
+    return {
+      segments: results,
+      cost: cost
+    };
+  }
+  function splitBySlash(url) {
+    return StringWrapper.split(url, SLASH_RE);
+  }
+  return {
+    setters: [function($__m) {
+      RegExp = $__m.RegExp;
+      RegExpWrapper = $__m.RegExpWrapper;
+      RegExpMatcherWrapper = $__m.RegExpMatcherWrapper;
+      StringWrapper = $__m.StringWrapper;
+      isPresent = $__m.isPresent;
+      isBlank = $__m.isBlank;
+      BaseException = $__m.BaseException;
+    }, function($__m) {
+      Map = $__m.Map;
+      MapWrapper = $__m.MapWrapper;
+      StringMap = $__m.StringMap;
+      StringMapWrapper = $__m.StringMapWrapper;
+      List = $__m.List;
+      ListWrapper = $__m.ListWrapper;
+    }, function($__m) {
+      escapeRegex = $__m.escapeRegex;
+    }],
+    execute: function() {
+      StaticSegment = (function() {
+        function StaticSegment(string) {
+          this.string = string;
+          this.name = '';
+          this.regex = escapeRegex(string);
+        }
+        return ($traceurRuntime.createClass)(StaticSegment, {generate: function(params) {
+            return this.string;
+          }}, {});
+      }());
+      Object.defineProperty(StaticSegment, "parameters", {get: function() {
+          return [[assert.type.string]];
+        }});
+      DynamicSegment = (function() {
+        function DynamicSegment(name) {
+          this.name = name;
+          this.regex = "([^/]+)";
+        }
+        return ($traceurRuntime.createClass)(DynamicSegment, {generate: function(params) {
+            if (!StringMapWrapper.contains(params, this.name)) {
+              throw new BaseException(("Route generator for '" + this.name + "' was not included in parameters passed."));
+            }
+            return StringMapWrapper.get(params, this.name);
+          }}, {});
+      }());
+      Object.defineProperty(DynamicSegment, "parameters", {get: function() {
+          return [[assert.type.string]];
+        }});
+      Object.defineProperty(DynamicSegment.prototype.generate, "parameters", {get: function() {
+          return [[StringMap]];
+        }});
+      StarSegment = (function() {
+        function StarSegment(name) {
+          this.name = name;
+          this.regex = "(.+)";
+        }
+        return ($traceurRuntime.createClass)(StarSegment, {generate: function(params) {
+            return StringMapWrapper.get(params, this.name);
+          }}, {});
+      }());
+      Object.defineProperty(StarSegment, "parameters", {get: function() {
+          return [[assert.type.string]];
+        }});
+      Object.defineProperty(StarSegment.prototype.generate, "parameters", {get: function() {
+          return [[StringMap]];
+        }});
+      paramMatcher = RegExpWrapper.create("^:([^\/]+)$");
+      wildcardMatcher = RegExpWrapper.create("^\\*([^\/]+)$");
+      Object.defineProperty(parsePathString, "parameters", {get: function() {
+          return [[assert.type.string]];
+        }});
+      SLASH_RE = RegExpWrapper.create('/');
+      Object.defineProperty(splitBySlash, "parameters", {get: function() {
+          return [[assert.type.string]];
+        }});
+      PathRecognizer = (function() {
+        function PathRecognizer(path, handler) {
+          this.handler = handler;
+          this.segments = ListWrapper.create();
+          var parsed = parsePathString(path);
+          var cost = parsed['cost'];
+          var segments = parsed['segments'];
+          var regexString = '^';
+          ListWrapper.forEach(segments, (function(segment) {
+            regexString += '/' + segment.regex;
+          }));
+          this.regex = RegExpWrapper.create(regexString);
+          this.segments = segments;
+          this.cost = cost;
+        }
+        return ($traceurRuntime.createClass)(PathRecognizer, {
+          parseParams: function(url) {
+            var params = StringMapWrapper.create();
+            var urlPart = url;
+            for (var i = 0; i < this.segments.length; i++) {
+              var segment = this.segments[i];
+              var match = RegExpWrapper.firstMatch(RegExpWrapper.create('/' + segment.regex), urlPart);
+              urlPart = StringWrapper.substring(urlPart, match[0].length);
+              if (segment.name.length > 0) {
+                StringMapWrapper.set(params, segment.name, match[1]);
+              }
+            }
+            return params;
+          },
+          generate: function(params) {
+            return ListWrapper.join(ListWrapper.map(this.segments, (function(segment) {
+              return '/' + segment.generate(params);
+            })), '');
+          }
+        }, {});
+      }());
+      $__export("PathRecognizer", PathRecognizer);
+      Object.defineProperty(PathRecognizer, "parameters", {get: function() {
+          return [[assert.type.string], [assert.type.any]];
+        }});
+      Object.defineProperty(PathRecognizer.prototype.parseParams, "parameters", {get: function() {
+          return [[assert.type.string]];
+        }});
+      Object.defineProperty(PathRecognizer.prototype.generate, "parameters", {get: function() {
+          return [[StringMap]];
+        }});
+    }
+  };
+});
+
+System.register("angular2/src/router/location", ["angular2/src/router/browser_location", "angular2/src/facade/lang", "angular2/src/facade/async"], function($__export) {
+  "use strict";
+  var __moduleName = "angular2/src/router/location";
+  var BrowserLocation,
+      StringWrapper,
+      EventEmitter,
+      ObservableWrapper,
+      Location;
+  function stripIndexHtml(url) {
+    if (url.length > 10 && StringWrapper.substring(url, url.length - 11) == '/index.html') {
+      return StringWrapper.substring(url, 0, url.length - 11);
+    }
+    return url;
+  }
+  return {
+    setters: [function($__m) {
+      BrowserLocation = $__m.BrowserLocation;
+    }, function($__m) {
+      StringWrapper = $__m.StringWrapper;
+    }, function($__m) {
+      EventEmitter = $__m.EventEmitter;
+      ObservableWrapper = $__m.ObservableWrapper;
+    }],
+    execute: function() {
+      Location = (function() {
+        function Location(browserLocation) {
+          var $__0 = this;
+          this._subject = new EventEmitter();
+          this._browserLocation = browserLocation;
+          this._baseHref = stripIndexHtml(this._browserLocation.getBaseHref());
+          this._browserLocation.onPopState((function(_) {
+            return $__0._onPopState(_);
+          }));
+        }
+        return ($traceurRuntime.createClass)(Location, {
+          _onPopState: function(_) {
+            ObservableWrapper.callNext(this._subject, {'url': this.path()});
+          },
+          path: function() {
+            return this.normalize(this._browserLocation.path());
+          },
+          normalize: function(url) {
+            return this._stripBaseHref(stripIndexHtml(url));
+          },
+          normalizeAbsolutely: function(url) {
+            if (url[0] != '/') {
+              url = '/' + url;
+            }
+            return this._addBaseHref(url);
+          },
+          _stripBaseHref: function(url) {
+            if (this._baseHref.length > 0 && StringWrapper.startsWith(url, this._baseHref)) {
+              return StringWrapper.substring(url, this._baseHref.length);
+            }
+            return url;
+          },
+          _addBaseHref: function(url) {
+            if (!StringWrapper.startsWith(url, this._baseHref)) {
+              return this._baseHref + url;
+            }
+            return url;
+          },
+          go: function(url) {
+            var finalUrl = this.normalizeAbsolutely(url);
+            this._browserLocation.pushState(null, '', finalUrl);
+          },
+          forward: function() {
+            this._browserLocation.forward();
+          },
+          back: function() {
+            this._browserLocation.back();
+          },
+          subscribe: function(onNext) {
+            var onThrow = arguments[1] !== (void 0) ? arguments[1] : null;
+            var onReturn = arguments[2] !== (void 0) ? arguments[2] : null;
+            ObservableWrapper.subscribe(this._subject, onNext, onThrow, onReturn);
+          }
+        }, {});
+      }());
+      $__export("Location", Location);
+      Object.defineProperty(Location, "parameters", {get: function() {
+          return [[BrowserLocation]];
+        }});
+      Object.defineProperty(Location.prototype.go, "parameters", {get: function() {
+          return [[assert.type.string]];
+        }});
+    }
+  };
+});
+
 System.register("angular2/src/di/decorators", ["angular2/src/di/annotations", "angular2/src/util/decorators"], function($__export) {
   "use strict";
   var __moduleName = "angular2/src/di/decorators";
@@ -20950,6 +25559,112 @@ System.register("angular2/forms", ["angular2/src/forms/model", "angular2/src/for
       });
     }],
     execute: function() {}
+  };
+});
+
+System.register("angular2/src/router/route_recognizer", ["angular2/src/facade/lang", "angular2/src/facade/collection", "angular2/src/router/path_recognizer"], function($__export) {
+  "use strict";
+  var __moduleName = "angular2/src/router/route_recognizer";
+  var RegExp,
+      RegExpWrapper,
+      StringWrapper,
+      isPresent,
+      Map,
+      MapWrapper,
+      List,
+      ListWrapper,
+      StringMap,
+      StringMapWrapper,
+      PathRecognizer,
+      RouteRecognizer;
+  return {
+    setters: [function($__m) {
+      RegExp = $__m.RegExp;
+      RegExpWrapper = $__m.RegExpWrapper;
+      StringWrapper = $__m.StringWrapper;
+      isPresent = $__m.isPresent;
+    }, function($__m) {
+      Map = $__m.Map;
+      MapWrapper = $__m.MapWrapper;
+      List = $__m.List;
+      ListWrapper = $__m.ListWrapper;
+      StringMap = $__m.StringMap;
+      StringMapWrapper = $__m.StringMapWrapper;
+    }, function($__m) {
+      PathRecognizer = $__m.PathRecognizer;
+    }],
+    execute: function() {
+      RouteRecognizer = (function() {
+        function RouteRecognizer() {
+          this.names = MapWrapper.create();
+          this.matchers = MapWrapper.create();
+          this.redirects = MapWrapper.create();
+        }
+        return ($traceurRuntime.createClass)(RouteRecognizer, {
+          addRedirect: function(path, target) {
+            MapWrapper.set(this.redirects, path, target);
+          },
+          addConfig: function(path, handler) {
+            var alias = arguments[2] !== (void 0) ? arguments[2] : null;
+            var recognizer = new PathRecognizer(path, handler);
+            MapWrapper.set(this.matchers, recognizer.regex, recognizer);
+            if (isPresent(alias)) {
+              MapWrapper.set(this.names, alias, recognizer);
+            }
+          },
+          recognize: function(url) {
+            var solutions = [];
+            MapWrapper.forEach(this.redirects, (function(target, path) {
+              if (StringWrapper.startsWith(url, path)) {
+                url = target + StringWrapper.substring(url, path.length);
+              }
+            }));
+            MapWrapper.forEach(this.matchers, (function(pathRecognizer, regex) {
+              var match;
+              if (isPresent(match = RegExpWrapper.firstMatch(regex, url))) {
+                var solution = StringMapWrapper.create();
+                StringMapWrapper.set(solution, 'cost', pathRecognizer.cost);
+                StringMapWrapper.set(solution, 'handler', pathRecognizer.handler);
+                StringMapWrapper.set(solution, 'params', pathRecognizer.parseParams(url));
+                if (url == '/') {
+                  StringMapWrapper.set(solution, 'matchedUrl', '/');
+                  StringMapWrapper.set(solution, 'unmatchedUrl', '');
+                } else {
+                  StringMapWrapper.set(solution, 'matchedUrl', match[0]);
+                  var unmatchedUrl = StringWrapper.substring(url, match[0].length);
+                  StringMapWrapper.set(solution, 'unmatchedUrl', unmatchedUrl);
+                }
+                ListWrapper.push(solutions, solution);
+              }
+            }));
+            return solutions;
+          },
+          hasRoute: function(name) {
+            return MapWrapper.contains(this.names, name);
+          },
+          generate: function(name, params) {
+            var pathRecognizer = MapWrapper.get(this.names, name);
+            return pathRecognizer.generate(params);
+          }
+        }, {});
+      }());
+      $__export("RouteRecognizer", RouteRecognizer);
+      Object.defineProperty(RouteRecognizer.prototype.addRedirect, "parameters", {get: function() {
+          return [[assert.type.string], [assert.type.string]];
+        }});
+      Object.defineProperty(RouteRecognizer.prototype.addConfig, "parameters", {get: function() {
+          return [[assert.type.string], [assert.type.any], [assert.type.string]];
+        }});
+      Object.defineProperty(RouteRecognizer.prototype.recognize, "parameters", {get: function() {
+          return [[assert.type.string]];
+        }});
+      Object.defineProperty(RouteRecognizer.prototype.hasRoute, "parameters", {get: function() {
+          return [[assert.type.string]];
+        }});
+      Object.defineProperty(RouteRecognizer.prototype.generate, "parameters", {get: function() {
+          return [[assert.type.string], [assert.type.any]];
+        }});
+    }
   };
 });
 
@@ -23022,6 +27737,201 @@ System.register("angular2/src/render/dom/compiler/compile_pipeline", ["angular2/
   };
 });
 
+System.register("angular2/src/router/route_registry", ["angular2/src/router/route_recognizer", "angular2/src/router/instruction", "angular2/src/facade/collection", "angular2/src/facade/lang", "angular2/src/router/route_config_impl", "angular2/src/reflection/reflection"], function($__export) {
+  "use strict";
+  var __moduleName = "angular2/src/router/route_registry";
+  var RouteRecognizer,
+      Instruction,
+      noopInstruction,
+      List,
+      ListWrapper,
+      Map,
+      MapWrapper,
+      StringMap,
+      StringMapWrapper,
+      isPresent,
+      isBlank,
+      isType,
+      StringWrapper,
+      BaseException,
+      RouteConfig,
+      reflector,
+      RouteRegistry;
+  function handlerToLeafInstructions(context, parentComponent) {
+    var children = StringMapWrapper.create();
+    StringMapWrapper.forEach(context['handler']['components'], (function(component, outletName) {
+      children[outletName] = new Instruction({
+        component: component,
+        params: context['params'],
+        parentCost: 0
+      });
+    }));
+    return new Instruction({
+      component: parentComponent,
+      children: children,
+      matchedUrl: context['matchedUrl'],
+      parentCost: context['cost']
+    });
+  }
+  function normalizeConfig(config) {
+    if (StringMapWrapper.contains(config, 'component')) {
+      var component = StringMapWrapper.get(config, 'component');
+      var components = StringMapWrapper.create();
+      StringMapWrapper.set(components, 'default', component);
+      var newConfig = StringMapWrapper.create();
+      StringMapWrapper.set(newConfig, 'components', components);
+      StringMapWrapper.forEach(config, (function(value, key) {
+        if (!StringWrapper.equals(key, 'component') && !StringWrapper.equals(key, 'components')) {
+          StringMapWrapper.set(newConfig, key, value);
+        }
+      }));
+      return newConfig;
+    }
+    return config;
+  }
+  return {
+    setters: [function($__m) {
+      RouteRecognizer = $__m.RouteRecognizer;
+    }, function($__m) {
+      Instruction = $__m.Instruction;
+      noopInstruction = $__m.noopInstruction;
+    }, function($__m) {
+      List = $__m.List;
+      ListWrapper = $__m.ListWrapper;
+      Map = $__m.Map;
+      MapWrapper = $__m.MapWrapper;
+      StringMap = $__m.StringMap;
+      StringMapWrapper = $__m.StringMapWrapper;
+    }, function($__m) {
+      isPresent = $__m.isPresent;
+      isBlank = $__m.isBlank;
+      isType = $__m.isType;
+      StringWrapper = $__m.StringWrapper;
+      BaseException = $__m.BaseException;
+    }, function($__m) {
+      RouteConfig = $__m.RouteConfig;
+    }, function($__m) {
+      reflector = $__m.reflector;
+    }],
+    execute: function() {
+      RouteRegistry = (function() {
+        function RouteRegistry() {
+          this._rules = MapWrapper.create();
+        }
+        return ($traceurRuntime.createClass)(RouteRegistry, {
+          config: function(parentComponent, config) {
+            var $__0 = this;
+            if (!StringMapWrapper.contains(config, 'path')) {
+              throw new BaseException('Route config does not contain "path"');
+            }
+            if (!StringMapWrapper.contains(config, 'component') && !StringMapWrapper.contains(config, 'components') && !StringMapWrapper.contains(config, 'redirectTo')) {
+              throw new BaseException('Route config does not contain "component," "components," or "redirectTo"');
+            }
+            var recognizer;
+            if (MapWrapper.contains(this._rules, parentComponent)) {
+              recognizer = MapWrapper.get(this._rules, parentComponent);
+            } else {
+              recognizer = new RouteRecognizer();
+              MapWrapper.set(this._rules, parentComponent, recognizer);
+            }
+            config = normalizeConfig(config);
+            if (StringMapWrapper.contains(config, 'redirectTo')) {
+              recognizer.addRedirect(StringMapWrapper.get(config, 'path'), StringMapWrapper.get(config, 'redirectTo'));
+              return ;
+            }
+            var components = StringMapWrapper.get(config, 'components');
+            StringMapWrapper.forEach(components, (function(component, _) {
+              $__0.configFromComponent(component);
+            }));
+            recognizer.addConfig(config['path'], config, config['as']);
+          },
+          configFromComponent: function(component) {
+            var $__0 = this;
+            if (!isType(component)) {
+              return ;
+            }
+            if (MapWrapper.contains(this._rules, component)) {
+              return ;
+            }
+            var annotations = reflector.annotations(component);
+            if (isPresent(annotations)) {
+              for (var i = 0; i < annotations.length; i++) {
+                var annotation = annotations[i];
+                if (annotation instanceof RouteConfig) {
+                  ListWrapper.forEach(annotation.configs, (function(config) {
+                    $__0.config(component, config);
+                  }));
+                }
+              }
+            }
+          },
+          recognize: function(url, parentComponent) {
+            var $__0 = this;
+            var componentRecognizer = MapWrapper.get(this._rules, parentComponent);
+            if (isBlank(componentRecognizer)) {
+              return null;
+            }
+            var componentSolutions = componentRecognizer.recognize(url);
+            var fullSolutions = ListWrapper.create();
+            for (var i = 0; i < componentSolutions.length; i++) {
+              var candidate = componentSolutions[i];
+              if (candidate['unmatchedUrl'].length == 0) {
+                ListWrapper.push(fullSolutions, handlerToLeafInstructions(candidate, parentComponent));
+              } else {
+                var children = StringMapWrapper.create(),
+                    allMapped = true;
+                StringMapWrapper.forEach(candidate['handler']['components'], (function(component, name) {
+                  if (!allMapped) {
+                    return ;
+                  }
+                  var childInstruction = $__0.recognize(candidate['unmatchedUrl'], component);
+                  if (isPresent(childInstruction)) {
+                    childInstruction.params = candidate['params'];
+                    children[name] = childInstruction;
+                  } else {
+                    allMapped = false;
+                  }
+                }));
+                if (allMapped) {
+                  ListWrapper.push(fullSolutions, new Instruction({
+                    component: parentComponent,
+                    children: children,
+                    matchedUrl: candidate['matchedUrl'],
+                    parentCost: candidate['cost']
+                  }));
+                }
+              }
+            }
+            if (fullSolutions.length > 0) {
+              ListWrapper.sort(fullSolutions, (function(a, b) {
+                return a.cost < b.cost ? -1 : 1;
+              }));
+              return fullSolutions[0];
+            }
+            return null;
+          },
+          generate: function(name, params, hostComponent) {
+            var componentRecognizer = MapWrapper.get(this._rules, hostComponent);
+            if (isPresent(componentRecognizer)) {
+              return componentRecognizer.generate(name, params);
+            }
+          }
+        }, {});
+      }());
+      $__export("RouteRegistry", RouteRegistry);
+      Object.defineProperty(RouteRegistry.prototype.recognize, "parameters", {get: function() {
+          return [[assert.type.string], []];
+        }});
+      Object.defineProperty(RouteRegistry.prototype.generate, "parameters", {get: function() {
+          return [[assert.type.string], [assert.type.any], []];
+        }});
+      Object.defineProperty(normalizeConfig, "parameters", {get: function() {
+          return [[StringMap]];
+        }});
+    }
+  };
+});
+
 System.register("angular2/change_detection", ["angular2/src/change_detection/parser/ast", "angular2/src/change_detection/parser/lexer", "angular2/src/change_detection/parser/parser", "angular2/src/change_detection/parser/locals", "angular2/src/change_detection/exceptions", "angular2/src/change_detection/interfaces", "angular2/src/change_detection/constants", "angular2/src/change_detection/proto_change_detector", "angular2/src/change_detection/binding_record", "angular2/src/change_detection/directive_record", "angular2/src/change_detection/dynamic_change_detector", "angular2/src/change_detection/change_detector_ref", "angular2/src/change_detection/pipes/pipe_registry", "angular2/src/change_detection/change_detection_util", "angular2/src/change_detection/pipes/pipe", "angular2/src/change_detection/pipes/null_pipe", "angular2/src/change_detection/change_detection"], function($__export) {
   "use strict";
   var __moduleName = "angular2/change_detection";
@@ -23557,6 +28467,239 @@ System.register("angular2/src/render/dom/compiler/compiler", ["angular2/src/di/a
         }});
       Object.defineProperty(DefaultDomCompiler, "parameters", {get: function() {
           return [[Parser], [ShadowDomStrategy], [TemplateLoader]];
+        }});
+    }
+  };
+});
+
+System.register("angular2/src/router/router", ["angular2/src/facade/async", "angular2/src/facade/collection", "angular2/src/facade/lang", "angular2/src/router/route_registry", "angular2/src/router/pipeline", "angular2/src/router/instruction", "angular2/src/router/router_outlet", "angular2/src/router/location"], function($__export) {
+  "use strict";
+  var __moduleName = "angular2/src/router/router";
+  var Promise,
+      PromiseWrapper,
+      EventEmitter,
+      ObservableWrapper,
+      Map,
+      MapWrapper,
+      List,
+      ListWrapper,
+      isBlank,
+      isPresent,
+      Type,
+      RouteRegistry,
+      Pipeline,
+      Instruction,
+      RouterOutlet,
+      Location,
+      Router,
+      RootRouter,
+      ChildRouter;
+  function mapObjAsync(obj, fn) {
+    return PromiseWrapper.all(mapObj(obj, fn));
+  }
+  function mapObj(obj, fn) {
+    var result = ListWrapper.create();
+    MapWrapper.forEach(obj, (function(value, key) {
+      return ListWrapper.push(result, fn(value, key));
+    }));
+    return result;
+  }
+  return {
+    setters: [function($__m) {
+      Promise = $__m.Promise;
+      PromiseWrapper = $__m.PromiseWrapper;
+      EventEmitter = $__m.EventEmitter;
+      ObservableWrapper = $__m.ObservableWrapper;
+    }, function($__m) {
+      Map = $__m.Map;
+      MapWrapper = $__m.MapWrapper;
+      List = $__m.List;
+      ListWrapper = $__m.ListWrapper;
+    }, function($__m) {
+      isBlank = $__m.isBlank;
+      isPresent = $__m.isPresent;
+      Type = $__m.Type;
+    }, function($__m) {
+      RouteRegistry = $__m.RouteRegistry;
+    }, function($__m) {
+      Pipeline = $__m.Pipeline;
+    }, function($__m) {
+      Instruction = $__m.Instruction;
+    }, function($__m) {
+      RouterOutlet = $__m.RouterOutlet;
+    }, function($__m) {
+      Location = $__m.Location;
+    }],
+    execute: function() {
+      Router = (function() {
+        function Router(registry, pipeline, location, parent, hostComponent) {
+          this.hostComponent = hostComponent;
+          this.navigating = false;
+          this.parent = parent;
+          this.previousUrl = null;
+          this._outlets = MapWrapper.create();
+          this._children = MapWrapper.create();
+          this._location = location;
+          this._registry = registry;
+          this._pipeline = pipeline;
+          this._subject = new EventEmitter();
+          this._currentInstruction = null;
+        }
+        return ($traceurRuntime.createClass)(Router, {
+          childRouter: function() {
+            var outletName = arguments[0] !== (void 0) ? arguments[0] : 'default';
+            if (!MapWrapper.contains(this._children, outletName)) {
+              MapWrapper.set(this._children, outletName, new ChildRouter(this, outletName));
+            }
+            return MapWrapper.get(this._children, outletName);
+          },
+          registerOutlet: function(outlet) {
+            var name = arguments[1] !== (void 0) ? arguments[1] : 'default';
+            MapWrapper.set(this._outlets, name, outlet);
+            if (isPresent(this._currentInstruction)) {
+              var childInstruction = this._currentInstruction.getChildInstruction(name);
+              return outlet.activate(childInstruction);
+            }
+            return PromiseWrapper.resolve(true);
+          },
+          config: function(config) {
+            var $__0 = this;
+            if (config instanceof List) {
+              config.forEach((function(configObject) {
+                $__0._registry.config($__0.hostComponent, configObject);
+              }));
+            } else {
+              this._registry.config(this.hostComponent, config);
+            }
+            return this.renavigate();
+          },
+          navigate: function(url) {
+            var $__0 = this;
+            if (this.navigating) {
+              return PromiseWrapper.resolve(true);
+            }
+            this.lastNavigationAttempt = url;
+            var matchedInstruction = this.recognize(url);
+            if (isBlank(matchedInstruction)) {
+              return PromiseWrapper.resolve(false);
+            }
+            if (isPresent(this._currentInstruction)) {
+              matchedInstruction.reuseComponentsFrom(this._currentInstruction);
+            }
+            matchedInstruction.router = this;
+            this._startNavigating();
+            var result = this._pipeline.process(matchedInstruction).then((function(_) {
+              $__0._location.go(matchedInstruction.matchedUrl);
+              ObservableWrapper.callNext($__0._subject, matchedInstruction.matchedUrl);
+              $__0._finishNavigating();
+              $__0._currentInstruction = matchedInstruction;
+            }));
+            PromiseWrapper.catchError(result, (function(_) {
+              return $__0._finishNavigating();
+            }));
+            return result;
+          },
+          _startNavigating: function() {
+            this.navigating = true;
+          },
+          _finishNavigating: function() {
+            this.navigating = false;
+          },
+          subscribe: function(onNext) {
+            ObservableWrapper.subscribe(this._subject, onNext);
+          },
+          activateOutlets: function(instruction) {
+            return this._queryOutlets((function(outlet, name) {
+              var childInstruction = instruction.getChildInstruction(name);
+              if (childInstruction.reuse) {
+                return PromiseWrapper.resolve(true);
+              }
+              return outlet.activate(childInstruction);
+            })).then((function(_) {
+              return instruction.mapChildrenAsync((function(instruction, _) {
+                return instruction.router.activateOutlets(instruction);
+              }));
+            }));
+          },
+          traverseOutlets: function(fn) {
+            var $__0 = this;
+            return this._queryOutlets(fn).then((function(_) {
+              return mapObjAsync($__0._children, (function(child, _) {
+                return child.traverseOutlets(fn);
+              }));
+            }));
+          },
+          _queryOutlets: function(fn) {
+            return mapObjAsync(this._outlets, fn);
+          },
+          recognize: function(url) {
+            return this._registry.recognize(url, this.hostComponent);
+          },
+          renavigate: function() {
+            var destination = isBlank(this.previousUrl) ? this.lastNavigationAttempt : this.previousUrl;
+            if (this.navigating || isBlank(destination)) {
+              return PromiseWrapper.resolve(false);
+            }
+            return this.navigate(destination);
+          },
+          generate: function(name, params) {
+            return this._registry.generate(name, params, this.hostComponent);
+          }
+        }, {});
+      }());
+      $__export("Router", Router);
+      Object.defineProperty(Router, "parameters", {get: function() {
+          return [[RouteRegistry], [Pipeline], [Location], [Router], []];
+        }});
+      Object.defineProperty(Router.prototype.registerOutlet, "parameters", {get: function() {
+          return [[RouterOutlet], []];
+        }});
+      Object.defineProperty(Router.prototype.config, "parameters", {get: function() {
+          return [[assert.type.any]];
+        }});
+      Object.defineProperty(Router.prototype.navigate, "parameters", {get: function() {
+          return [[assert.type.string]];
+        }});
+      Object.defineProperty(Router.prototype.activateOutlets, "parameters", {get: function() {
+          return [[Instruction]];
+        }});
+      Object.defineProperty(Router.prototype.recognize, "parameters", {get: function() {
+          return [[assert.type.string]];
+        }});
+      Object.defineProperty(Router.prototype.generate, "parameters", {get: function() {
+          return [[assert.type.string], [assert.type.any]];
+        }});
+      RootRouter = (function($__super) {
+        function RootRouter(registry, pipeline, location, hostComponent) {
+          var $__0;
+          $traceurRuntime.superConstructor(RootRouter).call(this, registry, pipeline, location, null, hostComponent);
+          this._location.subscribe(($__0 = this, function(change) {
+            return $__0.navigate(change['url']);
+          }));
+          this._registry.configFromComponent(hostComponent);
+          this.navigate(location.path());
+        }
+        return ($traceurRuntime.createClass)(RootRouter, {}, {}, $__super);
+      }(Router));
+      $__export("RootRouter", RootRouter);
+      Object.defineProperty(RootRouter, "parameters", {get: function() {
+          return [[RouteRegistry], [Pipeline], [Location], [Type]];
+        }});
+      ChildRouter = (function($__super) {
+        function ChildRouter(parent, hostComponent) {
+          $traceurRuntime.superConstructor(ChildRouter).call(this, parent._registry, parent._pipeline, parent._location, parent, hostComponent);
+          this.parent = parent;
+        }
+        return ($traceurRuntime.createClass)(ChildRouter, {}, {}, $__super);
+      }(Router));
+      Object.defineProperty(ChildRouter, "parameters", {get: function() {
+          return [[Router], []];
+        }});
+      Object.defineProperty(mapObjAsync, "parameters", {get: function() {
+          return [[Map], []];
+        }});
+      Object.defineProperty(mapObj, "parameters", {get: function() {
+          return [[Map], []];
         }});
     }
   };
@@ -24882,6 +30025,69 @@ System.register("angular2/src/core/compiler/element_injector", ["angular2/src/fa
   };
 });
 
+System.register("angular2/router", ["angular2/src/router/router", "angular2/src/router/router_outlet", "angular2/src/router/router_link", "angular2/src/router/instruction", "angular2/src/router/route_config_annotation", "angular2/src/router/route_config_decorator", "angular2/src/router/browser_location", "angular2/src/router/route_registry", "angular2/src/router/pipeline", "angular2/src/router/location", "angular2/src/core/application_tokens", "angular2/di"], function($__export) {
+  "use strict";
+  var __moduleName = "angular2/router";
+  var BrowserLocation,
+      Router,
+      RootRouter,
+      RouteRegistry,
+      Pipeline,
+      Location,
+      appComponentAnnotatedTypeToken,
+      bind,
+      routerInjectables;
+  var $__exportNames = {
+    routerInjectables: true,
+    undefined: true
+  };
+  var $__exportNames = {
+    routerInjectables: true,
+    undefined: true
+  };
+  return {
+    setters: [function($__m) {
+      Router = $__m.Router;
+      RootRouter = $__m.RootRouter;
+      $__export("Router", $__m.Router);
+    }, function($__m) {
+      $__export("RouterOutlet", $__m.RouterOutlet);
+    }, function($__m) {
+      $__export("RouterLink", $__m.RouterLink);
+    }, function($__m) {
+      $__export("RouteParams", $__m.RouteParams);
+    }, function($__m) {
+      Object.keys($__m).forEach(function(p) {
+        if (!$__exportNames[p])
+          $__export(p, $__m[p]);
+      });
+    }, function($__m) {
+      Object.keys($__m).forEach(function(p) {
+        if (!$__exportNames[p])
+          $__export(p, $__m[p]);
+      });
+    }, function($__m) {
+      BrowserLocation = $__m.BrowserLocation;
+    }, function($__m) {
+      RouteRegistry = $__m.RouteRegistry;
+    }, function($__m) {
+      Pipeline = $__m.Pipeline;
+    }, function($__m) {
+      Location = $__m.Location;
+    }, function($__m) {
+      appComponentAnnotatedTypeToken = $__m.appComponentAnnotatedTypeToken;
+    }, function($__m) {
+      bind = $__m.bind;
+    }],
+    execute: function() {
+      routerInjectables = [RouteRegistry, Pipeline, BrowserLocation, Location, bind(Router).toFactory((function(registry, pipeline, location, meta) {
+        return new RootRouter(registry, pipeline, location, meta.type);
+      }), [RouteRegistry, Pipeline, Location, appComponentAnnotatedTypeToken])];
+      $__export("routerInjectables", routerInjectables);
+    }
+  };
+});
+
 System.register("angular2/src/core/compiler/view", ["angular2/src/facade/collection", "angular2/change_detection", "angular2/src/core/compiler/element_injector", "angular2/src/core/compiler/element_binder", "angular2/src/facade/lang", "angular2/src/render/api"], function($__export) {
   "use strict";
   var __moduleName = "angular2/src/core/compiler/view";
@@ -25854,5 +31060,29 @@ System.register("angular2/angular2", ["angular2/change_detection", "angular2/cor
   };
 });
 
-//# sourceMappingURLDisabled=angular2.dev.js.map
-System.config({"paths":{"*":"*.js","angular2/*":"angular2/*"}});
+System.register("angular2/angular2_sfx", ["angular2/angular2", "angular2/router"], function($__export) {
+  "use strict";
+  var __moduleName = "angular2/angular2_sfx";
+  var angular,
+      router,
+      _prevAngular;
+  return {
+    setters: [function($__m) {
+      angular = $__m;
+    }, function($__m) {
+      router = $__m;
+    }],
+    execute: function() {
+      angular.router = router;
+      _prevAngular = window.angular;
+      angular.noConflict = function() {
+        window.angular = _prevAngular;
+        return angular;
+      };
+      window.angular = angular;
+    }
+  };
+});
+
+});
+//# sourceMappingURLDisabled=angular2.sfx.dev.js.map
